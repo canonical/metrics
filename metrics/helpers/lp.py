@@ -6,6 +6,7 @@ Copyright 2017 Canonical Ltd.
 Joshua Powers <josh.powers@canonical.com>
 """
 from datetime import datetime, timedelta
+import sys
 
 from launchpadlib.launchpad import Launchpad
 
@@ -32,7 +33,11 @@ def get_ubuntu():
 
 def get_bug_count(package, status=None):
     """Report total bugs for a package."""
-    project = LP.projects[package]
+    try:
+        project = LP.projects[package]
+    except KeyError:
+        print('Invalid package name: %s' % package)
+        sys.exit(1)
 
     if status:
         result = project.searchTasks(status=status)
