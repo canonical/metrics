@@ -5,24 +5,13 @@ Copyright 2017 Canonical Ltd.
 Robbie Basak <robie.basak@canonical.com>
 Joshua Powers <josh.powers@canonical.com>
 """
-from datetime import datetime, timedelta
-import json
-import urllib.request
+from datetime import datetime
 
 from prometheus_client import CollectorRegistry, Gauge
 
 import libgateway as lgw
 import liblaunchpad as llp
-
-
-def get_team_packages(team='ubuntu-server'):
-    """Return a team's packages based on package-team mapping."""
-    url = ("http://people.canonical.com/~ubuntu-archive/"
-           "package-team-mapping.json")
-    with urllib.request.urlopen(url) as url:
-        data = json.loads(url.read().decode())
-
-    return data[team]
+import util as util
 
 
 def print_result(upload, category):
@@ -36,7 +25,7 @@ def generate_upload_report(date):
     """Given a date, get uploads for that day."""
     results = {'dev': 0, 'sru': 0}
 
-    packages = get_team_packages()
+    packages = util.get_team_packages()
     ubuntu = llp.get_ubuntu()
     devels = ubuntu.getDevelopmentSeries()
     assert len(devels) == 1
