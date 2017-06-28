@@ -31,7 +31,7 @@ def get_ubuntu():
 
 
 def get_bug_count(package, status=None):
-    """Reports total bugs for a package"""
+    """Report total bugs for a package."""
     project = LP.projects[package]
 
     if status:
@@ -43,7 +43,7 @@ def get_bug_count(package, status=None):
 
 
 def get_ubuntu_bug_count(package, status=None):
-    """Reports total bugs in Ubuntu for a package."""
+    """Report total bugs in Ubuntu for a package."""
     distro = LP.distributions['Ubuntu']
     src_pkg = distro.getSourcePackage(name=package)
 
@@ -63,26 +63,26 @@ def get_active_review_count(package):
 
 
 def get_git_active_review_count(package):
-    """Reports total git reviews for a package."""
+    """Report total git reviews for a package."""
     reviews = LP.git_repositories.getByPath(path=package).landing_candidates
     return len([x for x in reviews if x.queue_status == 'Needs review'])
 
 
 def get_bzr_active_review_count(package):
-    """Reports total bzr reviews for a package."""
+    """Report total bzr reviews for a package."""
     reviews = LP.branches.getByPath(path=package).landing_candidates
     return len([x for x in reviews if x.queue_status == 'Needs review'])
 
 
 def get_team_backlog_count(team, distro):
-    """Reports total bugs for Launchpad team on a distro."""
+    """Report total bugs for Launchpad team on a distro."""
     lp_distro = LP.distributions[distro]
     lp_team = LP.people[team]
     return len(lp_distro.searchTasks(bug_subscriber=lp_team))
 
 
 def get_team_daily_triage_count(team, distro, blacklist=None):
-    """Reports total bugs for a Launchpad team that need triage."""
+    """Report total bugs for a Launchpad team that need triage."""
     lp_distro = LP.distributions[distro]
     lp_team = LP.people[team]
 

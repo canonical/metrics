@@ -99,10 +99,10 @@ def main():
             count += 1
             if category == 'SRU':
                 print('%s, %s, %s, %s' % (entry['package'], entry['series'],
-                      entry['version'], entry['signer']))
+                                          entry['version'], entry['signer']))
             else:
                 print('%s, %s, %s' % (entry['package'], entry['version'],
-                      entry['signer']))
+                                      entry['signer']))
 
         print('Total: %s' % count)
         print()

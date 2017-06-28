@@ -5,13 +5,14 @@ Copyright 2017 Canonical Ltd.
 Robbie Basak <robie.basak@canonical.com>
 Joshua Powers <josh.powers@canonical.com>
 """
+import argparse
+
 from datetime import datetime
 
 from prometheus_client import CollectorRegistry, Gauge
 
-import libgateway as lgw
-import liblaunchpad as llp
-import util as util
+from metrics.helpers import lp
+from metrics.helpers import util
 
 
 def print_result(upload, category):
@@ -26,7 +27,7 @@ def generate_upload_report(date):
     results = {'dev': 0, 'sru': 0}
 
     packages = util.get_team_packages()
-    ubuntu = llp.get_ubuntu()
+    ubuntu = lp.get_ubuntu()
     devels = ubuntu.getDevelopmentSeries()
     assert len(devels) == 1
     devel = devels[0].name
@@ -45,8 +46,8 @@ def generate_upload_report(date):
             upload = {
                 'package': spph.source_package_name,
                 'version': spph.source_package_version,
-                'series': llp.get_series_name(spph.distro_series_link),
-                'sponsor': llp.get_person_name(spph.sponsor_link),
+                'series': lp.get_series_name(spph.distro_series_link),
+                'sponsor': lp.get_person_name(spph.sponsor_link),
                 'pocket': spph.pocket,
             }
 
@@ -64,24 +65,31 @@ def generate_upload_report(date):
     return results
 
 
-def main():
+def collect(dryrun=False):
     """Push upload data."""
     date = datetime.now().date().strftime('%Y-%m-%d')
     results = generate_upload_report(date)
     print('%s: %s' % (date, results))
 
-    registry = CollectorRegistry()
+    if not dryrun:
+        print('Pushing data...')
+        registry = CollectorRegistry()
 
-    Gauge('server_uploads_daily_dev_total',
-          'Uploads to dev release',
-          registry=registry).set(results['dev'])
+        Gauge('server_uploads_daily_dev_total',
+              'Uploads to dev release',
+              None,
+              registry=registry).set(results['dev'])
 
-    Gauge('server_uploads_daily_sru_total',
-          'Uploads to supported release (SRU)',
-          registry=registry).set(results['sru'])
+        Gauge('server_uploads_daily_sru_total',
+              'Uploads to supported release (SRU)',
+              None,
+              registry=registry).set(results['sru'])
 
-    lgw.push2gateway('upload', registry)
+        util.push2gateway('upload', registry)
 
 
 if __name__ == '__main__':
-    main()
+    PARSER = argparse.ArgumentParser()
+    PARSER.add_argument('-d', '--dryrun', action='store_true')
+    ARGS = PARSER.parse_args()
+    collect(ARGS.dryrun)
