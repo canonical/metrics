@@ -25,7 +25,10 @@ def bzr_contributors(pkg):
     with tempfile.TemporaryDirectory() as temp:
         run('bzr branch %s %s/%s' % (pkg, temp, pkg))
         out, _, _ = run('bzr stats -q %s/%s' % (temp, pkg))
-        return re.findall(r'<\S+@\S+>', out.decode("utf-8"))
+        emails = re.findall(r'<\S+@\S+>', out.decode("utf-8"))
+        # strip the < and > from emails, needs these in regex, but not
+        # results to be consistant with git results.
+        return ([s.strip('>').strip('<') for s in emails])
 
 
 def git_contributors(git_url):
@@ -58,7 +61,10 @@ def dpkg_compare_versions(upkg, dpkg):
 
 def get_contributors(project):
     """Get a list of contributor emails."""
-    if project.contains('lp:'):
+    if not project:
+        return []
+
+    if 'lp:' in project:
         return bzr_contributors(project)
 
     return git_contributors(project)

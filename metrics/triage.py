@@ -52,6 +52,6 @@ def collect(dryrun=False):
 
 if __name__ == '__main__':
     PARSER = argparse.ArgumentParser()
-    PARSER.add_argument('-d', '--dryrun', action='store_true')
+    PARSER.add_argument('--dryrun', action='store_true')
     ARGS = PARSER.parse_args()
     collect(ARGS.dryrun)
