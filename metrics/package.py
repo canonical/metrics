@@ -73,12 +73,12 @@ def collect(pkg, repo='', dryrun=False):
         Gauge('server_%s_contrib_external_total' % pkg_str,
               'External Contributors',
               None,
-              registry=registry).set(len(contrib_internal))
+              registry=registry).set(len(contrib_external))
 
         Gauge('server_%s_contrib_internal_total' % pkg_str,
               'Internal Contributors',
               None,
-              registry=registry).set(len(contrib_external))
+              registry=registry).set(len(contrib_internal))
 
         util.push2gateway(pkg_str, registry)
 
