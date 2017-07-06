@@ -22,4 +22,4 @@ output-format=parseable
 # (useful for modules/projects where namespaces are manipulated during runtime
 # and thus existing member attributes cannot be deduced by static analysis. It
 # supports qualified module names, as well as Unix pattern matching.
-ignored-modules=launchpadlib.launchpad
+ignored-modules=launchpadlib.launchpad, distro_info
