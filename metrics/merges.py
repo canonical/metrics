@@ -1,64 +1,80 @@
 #!/usr/bin/env python3
-"""Submit metrics for MOM statistics.
+"""Submit metrics for merge-o-matic statistics.
 
 Copyright 2017 Canonical Ltd.
 Joshua Powers <josh.powers@canonical.com>
 """
 import argparse
+from collections import deque
+import os
+import sys
 
 from prometheus_client import CollectorRegistry, Gauge
 
 from metrics.helpers import util
 
-BLACKLIST = ['lxd']
-URL_MERGE = 'https://merges.ubuntu.com/main.json'
+METRIC_FILE = '/srv/patches.ubuntu.com/stats-ubuntu-server.txt'
 
 
-def get_merge_data(team='ubuntu-server'):
-    """Get number of merges."""
-    merges = util.get_json_from_url(URL_MERGE)
-    team_pkgs = util.get_team_packages(team)
+def get_merge_data():
+    """Get statistics from merge-o-matic"""
+    results = {'local': 0, 'modified': 0, 'needs-merge': 0, 'needs-sync': 0,
+               'repackaged': 0, 'total': 0, 'unmodified': 0}
 
-    counter = 0
-    age = 0
-    for package in merges:
-        if (package['source_package'] in team_pkgs and
-                package['source_package'] not in BLACKLIST):
-            value = util.dpkg_compare_versions(package['left_version'],
-                                               package['right_version'])
+    if not os.path.isfile(METRIC_FILE):
+        print('Missing metric results file: %s' % METRIC_FILE)
+        sys.exit(1)
 
-            # Limit to only showing where Ubuntu is behind
-            # upstream (i.e. '<')
-            if value == '>' or value == '=':
-                continue
+    with open(METRIC_FILE) as metrics:
+        entries = deque(metrics, 4)
 
-            counter += 1
-            age += package['age']
-            print('%s (%s days)' % (package['source_package'],
-                                    package['age']))
+    for entry in entries:
+        values = entry.strip().split(' ')[3:]
+        for value in values:
+            k, v = value.split('=')
+            results[k] = results[k] + int(v)
 
-    return counter, age
+    return results
 
 
 def collect(dryrun=False):
     """Submit data to Push Gateway."""
-    counter, age = get_merge_data()
-    average = age / counter
-    print('---\n%s packages (%s avg. days)' % (counter, average))
+    results = get_merge_data()
+    print('%s' % (results))
 
     if not dryrun:
         print('Pushing data...')
         registry = CollectorRegistry()
 
-        Gauge('server_merge_mom_total',
-              'Src pkgs requiring attention',
+        Gauge('server_mom_local_total',
+              '',
               None,
-              registry=registry).set(counter)
+              registry=registry).set(results['local'])
 
-        Gauge('server_merge_mom_age_total',
-              'Average age',
+        Gauge('server_mom_modified_total',
+              '',
               None,
-              registry=registry).set(average)
+              registry=registry).set(results['modified'])
+
+        Gauge('server_mom_needs_merge_total',
+              '',
+              None,
+              registry=registry).set(results['needs-merge'])
+
+        Gauge('server_mom_needs_sync_total',
+              '',
+              None,
+              registry=registry).set(results['needs-sync'])
+
+        Gauge('server_mom_repackaged_total',
+              '',
+              None,
+              registry=registry).set(results['repackaged'])
+
+        Gauge('server_mom_unmodified_total',
+              '',
+              None,
+              registry=registry).set(results['unmodified'])
 
         util.push2gateway('merge', registry)
 
