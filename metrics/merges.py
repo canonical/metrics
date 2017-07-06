@@ -17,7 +17,7 @@ METRIC_FILE = '/srv/patches.ubuntu.com/stats-ubuntu-server.txt'
 
 
 def get_merge_data():
-    """Get statistics from merge-o-matic"""
+    """Get statistics from merge-o-matic."""
     results = {'local': 0, 'modified': 0, 'needs-merge': 0, 'needs-sync': 0,
                'repackaged': 0, 'total': 0, 'unmodified': 0}
 
@@ -31,8 +31,8 @@ def get_merge_data():
     for entry in entries:
         values = entry.strip().split(' ')[3:]
         for value in values:
-            k, v = value.split('=')
-            results[k] = results[k] + int(v)
+            key, value = value.split('=')
+            results[key] = results[key] + int(value)
 
     return results
 
