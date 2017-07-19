@@ -2,8 +2,6 @@
 """Submit metrics for proposed-migration statistics."""
 import csv
 from io import StringIO
-import os
-import sys
 import logging
 import urllib
 
