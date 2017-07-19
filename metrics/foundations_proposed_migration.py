@@ -35,11 +35,11 @@ def get_proposed_migration_queue(registry, label, description):
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
 
-    registry = CollectorRegistry()
+    REGISTRY = CollectorRegistry()
     try:
         get_proposed_migration_queue(
-            registry,
+            REGISTRY,
             label='foundations_devel_proposed_migration_size',
             description=('Number of packages waiting in devel-proposed'))
     finally:
-        util.push2gateway('proposed_migration', registry)
+        util.push2gateway('proposed_migration', REGISTRY)
