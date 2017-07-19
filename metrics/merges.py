@@ -13,7 +13,7 @@ from prometheus_client import CollectorRegistry, Gauge
 
 from metrics.helpers import util
 
-METRIC_FILE = '/srv/patches.ubuntu.com/stats-ubuntu-{team_name}.txt'
+METRIC_FILE = '/srv/patches.ubuntu.com/stats-{launchpad_team_name}.txt'
 
 
 def get_merge_data(team_name):
@@ -21,7 +21,8 @@ def get_merge_data(team_name):
     results = {'local': 0, 'modified': 0, 'needs-merge': 0, 'needs-sync': 0,
                'repackaged': 0, 'total': 0, 'unmodified': 0}
 
-    metric_filename = METRIC_FILE.format(team_name=team_name)
+    metric_filename = METRIC_FILE.format(
+        launchpad_team_name=util.get_launchpad_team_name(team_name))
     if not os.path.isfile(metric_filename):
         print('Missing metric results file: %s' % metric_filename)
         sys.exit(1)

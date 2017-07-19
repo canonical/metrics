@@ -85,6 +85,15 @@ def get_team_packages(team='ubuntu-server'):
     return get_json_from_url(url)[team]
 
 
+def get_launchpad_team_name(team):
+    """Return a Launchpad team name based on the shorter name given."""
+    mapping = {
+        'foundations': 'foundations-bugs',
+        'server': 'ubuntu-server',
+    }
+    return mapping[team]
+
+
 def run(cmd):
     """Run local command."""
     print(cmd)
