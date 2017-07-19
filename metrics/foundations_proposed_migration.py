@@ -15,7 +15,8 @@ def get_proposed_migration_queue(registry, label, description):
           + 'update_excuses.csv'
     logging.info('Pulling proposed-migration stats')
     with urllib.request.urlopen(src) as req:
-        if req.getcode() != 200:
+        code = req.getcode()
+        if code != 200:
             logging.error('URL %s failed with code %u', req.geturl(), code)
             return
         csvdata = StringIO(req.read().decode('UTF-8'))
