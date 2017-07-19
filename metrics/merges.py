@@ -74,7 +74,10 @@ def collect(team_name, dryrun=False):
               None,
               registry=registry).set(results['unmodified'])
 
-        util.push2gateway('merge', registry)
+        if team_name == 'server':
+            util.push2gateway('merge', registry)
+        else:
+            util.push2gateway('merge-%s' % team_name, registry)
 
 
 if __name__ == '__main__':
