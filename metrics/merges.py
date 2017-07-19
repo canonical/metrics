@@ -13,19 +13,21 @@ from prometheus_client import CollectorRegistry, Gauge
 
 from metrics.helpers import util
 
-METRIC_FILE = '/srv/patches.ubuntu.com/stats-ubuntu-server.txt'
+METRIC_FILE = '/srv/patches.ubuntu.com/stats-{launchpad_team_name}.txt'
 
 
-def get_merge_data():
+def get_merge_data(team_name):
     """Get statistics from merge-o-matic."""
     results = {'local': 0, 'modified': 0, 'needs-merge': 0, 'needs-sync': 0,
                'repackaged': 0, 'total': 0, 'unmodified': 0}
 
-    if not os.path.isfile(METRIC_FILE):
-        print('Missing metric results file: %s' % METRIC_FILE)
+    metric_filename = METRIC_FILE.format(
+        launchpad_team_name=util.get_launchpad_team_name(team_name))
+    if not os.path.isfile(metric_filename):
+        print('Missing metric results file: %s' % metric_filename)
         sys.exit(1)
 
-    with open(METRIC_FILE) as metrics:
+    with open(metric_filename) as metrics:
         entries = deque(metrics, 4)
 
     for entry in entries:
@@ -37,41 +39,41 @@ def get_merge_data():
     return results
 
 
-def collect(dryrun=False):
+def collect(team_name, dryrun=False):
     """Submit data to Push Gateway."""
-    results = get_merge_data()
+    results = get_merge_data(team_name)
     print('%s' % (results))
 
     if not dryrun:
         print('Pushing data...')
         registry = CollectorRegistry()
 
-        Gauge('server_mom_local_total',
+        Gauge('{}_mom_local_total'.format(team_name),
               '',
               None,
               registry=registry).set(results['local'])
 
-        Gauge('server_mom_modified_total',
+        Gauge('{}_mom_modified_total'.format(team_name),
               '',
               None,
               registry=registry).set(results['modified'])
 
-        Gauge('server_mom_needs_merge_total',
+        Gauge('{}_mom_needs_merge_total'.format(team_name),
               '',
               None,
               registry=registry).set(results['needs-merge'])
 
-        Gauge('server_mom_needs_sync_total',
+        Gauge('{}_mom_needs_sync_total'.format(team_name),
               '',
               None,
               registry=registry).set(results['needs-sync'])
 
-        Gauge('server_mom_repackaged_total',
+        Gauge('{}_mom_repackaged_total'.format(team_name),
               '',
               None,
               registry=registry).set(results['repackaged'])
 
-        Gauge('server_mom_unmodified_total',
+        Gauge('{}_mom_unmodified_total'.format(team_name),
               '',
               None,
               registry=registry).set(results['unmodified'])
@@ -81,6 +83,7 @@ def collect(dryrun=False):
 
 if __name__ == '__main__':
     PARSER = argparse.ArgumentParser()
+    PARSER.add_argument('team_name', help='team name')
     PARSER.add_argument('--dryrun', action='store_true')
     ARGS = PARSER.parse_args()
-    collect(ARGS.dryrun)
+    collect(ARGS.team_name, ARGS.dryrun)
