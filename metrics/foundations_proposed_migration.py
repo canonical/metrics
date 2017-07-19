@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+"""Submit metrics for proposed-migration statistics."""
 import csv
 from io import StringIO
 import os
@@ -11,8 +12,7 @@ from prometheus_client import CollectorRegistry, Gauge
 
 
 def get_proposed_migration_queue(registry, label, description):
-    """Get information about current proposed-migration queue"""
-
+    """Get information about current proposed-migration queue."""
     src = 'https://people.canonical.com/~ubuntu-archive/proposed-migration/' \
           + 'update_excuses.csv'
     logging.info('Pulling proposed-migration stats')
