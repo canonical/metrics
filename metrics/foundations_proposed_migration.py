@@ -9,10 +9,12 @@ import urllib
 from metrics.helpers import util
 from prometheus_client import CollectorRegistry, Gauge
 
+
 def get_proposed_migration_queue(registry, label, description):
     """Get information about current proposed-migration queue"""
 
-    src = 'https://people.canonical.com/~ubuntu-archive/proposed-migration/update_excuses.csv'
+    src = 'https://people.canonical.com/~ubuntu-archive/proposed-migration/' \
+          + 'update_excuses.csv'
     logging.info('Pulling proposed-migration stats')
     with urllib.request.urlopen(src) as req:
         if req.getcode() != 200:
