@@ -24,7 +24,8 @@ def get_merge_data(team_name):
         launchpad_team_name=util.get_launchpad_team_name(team_name))
 
     response = urllib.request.urlopen(metric_url)
-    entries = deque(response.read().decode('utf-8').split('\n'), 4)
+    data = response.read().decode('utf-8').split('\n')
+    entries = deque(filter(None, data), 4)
 
     for entry in entries:
         values = entry.strip().split(' ')[3:]
