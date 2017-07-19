@@ -22,11 +22,11 @@ def print_result(upload, category):
                                   upload['pocket'], upload['sponsor']))
 
 
-def generate_upload_report(date):
+def generate_upload_report(date, team_name):
     """Given a date, get uploads for that day."""
     results = {'dev': 0, 'sru': 0}
 
-    packages = util.get_team_packages()
+    packages = util.get_team_packages(util.get_launchpad_team_name(team_name))
     ubuntu = lp.get_ubuntu()
     devels = ubuntu.getDevelopmentSeries()
     assert len(devels) == 1
@@ -65,31 +65,35 @@ def generate_upload_report(date):
     return results
 
 
-def collect(dryrun=False):
+def collect(team_name, dryrun=False):
     """Push upload data."""
     date = datetime.now().date().strftime('%Y-%m-%d')
-    results = generate_upload_report(date)
+    results = generate_upload_report(date, team_name)
     print('%s: %s' % (date, results))
 
     if not dryrun:
         print('Pushing data...')
         registry = CollectorRegistry()
 
-        Gauge('server_uploads_daily_dev_total',
+        Gauge('{}_uploads_daily_dev_total'.format(team_name),
               'Uploads to dev release',
               None,
               registry=registry).set(results['dev'])
 
-        Gauge('server_uploads_daily_sru_total',
+        Gauge('{}_uploads_daily_sru_total'.format(team_name),
               'Uploads to supported release (SRU)',
               None,
               registry=registry).set(results['sru'])
 
-        util.push2gateway('upload', registry)
+        if team_name == 'server':
+            util.push2gateway('upload', registry)
+        else:
+            util.push2gateway('upload-%s' % team_name, registry)
 
 
 if __name__ == '__main__':
     PARSER = argparse.ArgumentParser()
+    PARSER.add_argument('team_name', help='team name')
     PARSER.add_argument('--dryrun', action='store_true')
     ARGS = PARSER.parse_args()
-    collect(ARGS.dryrun)
+    collect(ARGS.team_name, ARGS.dryrun)
