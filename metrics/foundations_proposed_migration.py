@@ -33,7 +33,6 @@ def get_proposed_migration_queue(registry, label, description):
 
 
 if __name__ == '__main__':
-    pkg = 'foundations-kpi-scripts'
     logging.basicConfig(level=logging.DEBUG)
 
     registry = CollectorRegistry()
