@@ -5,7 +5,7 @@ Copyright 2017 Canonical Ltd.
 Joshua Powers <josh.powers@canonical.com>
 """
 import argparse
-from collections import deque
+from collections import defaultdict, deque
 import urllib.request
 
 from prometheus_client import CollectorRegistry, Gauge
@@ -19,6 +19,7 @@ def get_merge_data(team_name):
     """Get statistics from merge-o-matic."""
     results = {'local': 0, 'modified': 0, 'needs-merge': 0, 'needs-sync': 0,
                'repackaged': 0, 'total': 0, 'unmodified': 0}
+    results_by_component = defaultdict(dict)
 
     metric_url = URL_TEMPLATE.format(
         launchpad_team_name=util.get_launchpad_team_name(team_name))
@@ -28,22 +29,34 @@ def get_merge_data(team_name):
     entries = deque(filter(None, data), 4)
 
     for entry in entries:
-        values = entry.strip().split(' ')[3:]
+        entry_parts = entry.strip().split(' ')
+        component = entry_parts[2]
+        values = entry_parts[3:]
         for value in values:
             key, value = value.split('=')
             results[key] = results[key] + int(value)
+            results_by_component[component][key] = int(value)
 
-    return results
+    return results, results_by_component
 
 
 def collect(team_name, dryrun=False):
     """Submit data to Push Gateway."""
-    results = get_merge_data(team_name)
-    print('%s' % (results))
+    results, results_by_component = get_merge_data(team_name)
+    print('%s' % (results,))
+    print('%s' % (results_by_component,))
 
     if not dryrun:
         print('Pushing data...')
         registry = CollectorRegistry()
+        gauge = Gauge(
+            '{}_mom'.format(team_name), '', ['component', 'status'],
+            registry=registry)
+        for component in results_by_component:
+            for status in results_by_component[component]:
+                labels = gauge.labels(component,  # pylint: disable=no-member
+                                      status)
+                labels.set(results_by_component[component][status])
 
         Gauge('{}_mom_local_total'.format(team_name),
               '',
