@@ -51,7 +51,8 @@ def parse_simplestreams_for_images(cloud_name, image_type):
 def collect(dryrun=False):
     """Push published cloud image counts."""
     registry = CollectorRegistry()
-    count_gauge = Gauge('foundations_cloud_images_published', '',
+    count_gauge = Gauge('foundations_cloud_images_published',
+                        'The number of cloud images published',
                         ['image_type', 'cloud', 'release', 'arch'],
                         registry=registry)
     latest_serial_gauge = Gauge('foundations_cloud_images_current_serial',
