@@ -108,7 +108,7 @@ def collect(dryrun=False):
               None,
               registry=registry).set(lts_results['s390x'])
 
-        util.push2gateway('iso', registry)
+        util.push2gateway('server_iso', registry)
 
 
 if __name__ == '__main__':

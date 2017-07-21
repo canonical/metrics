@@ -85,10 +85,7 @@ def collect(team_name, dryrun=False):
               None,
               registry=registry).set(results['sru'])
 
-        if team_name == 'server':
-            util.push2gateway('upload', registry)
-        else:
-            util.push2gateway('upload-%s' % team_name, registry)
+        util.push2gateway('%s-upload' % team_name, registry)
 
 
 if __name__ == '__main__':
