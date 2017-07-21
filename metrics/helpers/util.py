@@ -10,8 +10,13 @@ import shlex
 import subprocess
 import sys
 import tempfile
-import urllib.error
-import urllib.request
+try:
+    from urllib.error import URLError
+    from urllib.request import urlopen
+except ImportError:
+    # Python 2
+    from urllib2 import URLError
+    from urllib2 import urlopen
 
 import git
 from prometheus_client import push_to_gateway
@@ -72,7 +77,7 @@ def get_contributors(project):
 
 def get_json_from_url(json_url):
     """Return JSON from a URL."""
-    with urllib.request.urlopen(json_url) as url:
+    with urlopen(json_url) as url:
         data = json.loads(url.read().decode())
 
     return data
@@ -111,6 +116,6 @@ def push2gateway(pkg, registry):
                         job=pkg,
                         grouping_key={'instance': INSTANCE},
                         registry=registry)
-    except urllib.error.URLError:
+    except URLError:
         print('Could not connect to push gateway!')
         sys.exit(1)
