@@ -37,6 +37,7 @@ def get_proposed_migration_queue(registry):
                   None,
                   registry=registry).set(median_age)
 
+
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
 
