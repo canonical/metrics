@@ -5,6 +5,7 @@ Robbie Basak <robie.basak@canonical.com>
 Joshua Powers <josh.powers@canonical.com>
 """
 import json
+import os
 import re
 import shlex
 import subprocess
@@ -17,7 +18,7 @@ import git
 from prometheus_client import push_to_gateway
 
 INSTANCE = 'ubuntu-server'
-PROMETHEUS_IP = '10.245.168.18:9091'
+PROMETHEUS_IP = os.environ.get('METRICS_PROMETHEUS', '10.245.168.18:9091')
 
 
 def bzr_contributors(pkg):
