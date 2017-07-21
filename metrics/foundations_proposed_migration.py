@@ -24,6 +24,7 @@ def get_proposed_migration_queue(registry):
     csv_handle = csv.reader(csvdata)
     latest = list(csv_handle)[-1]
     valid, not_considered, discard, median_age = [int(x) for x in latest[1:]]
+    del discard
 
     gauge = Gauge('foundations_devel_proposed_migration_size',
                   'Number of packages waiting in devel-proposed',
