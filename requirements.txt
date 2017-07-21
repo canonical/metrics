@@ -1,2 +1,4 @@
+    httplib2
     gitpython
+    google-api-python-client
     prometheus_client
