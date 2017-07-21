@@ -9,7 +9,7 @@ from metrics.helpers import util
 from prometheus_client import CollectorRegistry, Gauge
 
 
-def get_proposed_migration_queue(registry, label, description):
+def get_proposed_migration_queue(registry):
     """Get information about current proposed-migration queue."""
     src = 'https://people.canonical.com/~ubuntu-archive/proposed-migration/' \
           + 'update_excuses.csv'
@@ -23,13 +23,20 @@ def get_proposed_migration_queue(registry, label, description):
 
     csv_handle = csv.reader(csvdata)
     latest = list(csv_handle)[-1]
-    valid, not_considered = [int(x) for x in latest[1:3]]
+    valid, not_considered, discard, median_age = [int(x) for x in latest[1:]]
+    del discard
 
-    gauge = Gauge(label, description,
+    gauge = Gauge('foundations_devel_proposed_migration_size',
+                  'Number of packages waiting in devel-proposed',
                   ['candidate'],
                   registry=registry)
     gauge.labels('Valid Candidates').set(valid)
     gauge.labels('Not Considered').set(not_considered)
+
+    gauge = Gauge('foundations_devel_proposed_migration_age',
+                  'Median age of packages waiting in devel-proposed',
+                  None,
+                  registry=registry).set(median_age)
 
 
 if __name__ == '__main__':
@@ -37,9 +44,6 @@ if __name__ == '__main__':
 
     REGISTRY = CollectorRegistry()
     try:
-        get_proposed_migration_queue(
-            REGISTRY,
-            label='foundations_devel_proposed_migration_size',
-            description=('Number of packages waiting in devel-proposed'))
+        get_proposed_migration_queue(REGISTRY)
     finally:
         util.push2gateway('proposed_migration', REGISTRY)
