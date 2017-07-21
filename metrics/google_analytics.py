@@ -124,14 +124,14 @@ def set_gauges(registry, response, metric_prefix):
                     gauges[metric_name].labels(*dimensions).set(value)
 
 
-def collect(view_id, creds_path, dry_run=False):
+def collect(view_id, creds_path, metric_prefix, dry_run=False):
     """Submit data to Push Gateway."""
     registry = CollectorRegistry()
     try:
         analytics = initialize_analyticsreporting(creds_path, SCOPES)
         # Get historical, all-time total counters.
         response = get_report(analytics, view_id, '2010-01-01')
-        set_gauges(registry, response, 'google_analytics')
+        set_gauges(registry, response, metric_prefix)
     except Exception:  # pylint: disable=broad-except
         logging.exception('Error collecting metrics')
     finally:
@@ -141,7 +141,7 @@ def collect(view_id, creds_path, dry_run=False):
             for var in ('http_proxy', 'http_proxy'):
                 for envvar in (var.lower(), var.upper()):
                     os.environ.pop(envvar, None)
-            util.push2gateway('google_analytics', registry)
+            util.push2gateway(metric_prefix, registry)
         else:  # Debugging enabled.
             import pprint
             pprint.pprint([(x.name, x.samples) for x in registry.collect()])
@@ -150,6 +150,7 @@ def collect(view_id, creds_path, dry_run=False):
 if __name__ == '__main__':
     PARSER = argparse.ArgumentParser()
     PARSER.add_argument('--dryrun', action='store_true')
+    PARSER.add_argument('--prefix', default='google_analytics')
     ARGS = PARSER.parse_args()
     if ARGS.dryrun:
         logging.basicConfig(level=logging.DEBUG)
@@ -157,4 +158,4 @@ if __name__ == '__main__':
 
     VIEW_ID = os.environ['GA_VIEW_ID']
     CREDS_PATH = os.environ['GA_KEY_FILE_LOCATION']
-    collect(VIEW_ID, CREDS_PATH, ARGS.dryrun)
+    collect(VIEW_ID, CREDS_PATH, ARGS.prefix, ARGS.dryrun)
