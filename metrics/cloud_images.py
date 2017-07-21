@@ -5,6 +5,7 @@ Copyright 2017 Canonical Ltd.
 Daniel Watkins <daniel.watkins@canonical.com>
 """
 import argparse
+import datetime
 import json
 import re
 import subprocess
@@ -57,6 +58,10 @@ def collect(dryrun=False):
                                 'The date portion of the latest serial',
                                 ['image_type', 'cloud', 'release'],
                                 registry=registry)
+    latest_serial_age_gauge = Gauge(
+        'foundations_cloud_images_current_serial_age',
+        'The time in days between the last serial and today',
+        ['image_type', 'cloud', 'release'], registry=registry)
     for image_type in ['daily', 'release']:
         for cloud_name in CLOUD_NAMES[image_type]:
             print('Counting {} images for {}...'.format(image_type,
@@ -71,9 +76,15 @@ def collect(dryrun=False):
                     count_gauge.labels(
                         image_type, cloud_name, release, arch).set(count)
             for release in latest_serials:
+                serial = latest_serials[release]
                 latest_serial_gauge.labels(
-                    image_type, cloud_name, release).set(
-                        latest_serials[release])
+                    image_type, cloud_name, release).set(serial)
+                serial_datetime = datetime.datetime.strptime(str(serial),
+                                                             '%Y%m%d')
+                serial_age = (datetime.date.today()
+                              - serial_datetime.date()).days
+                latest_serial_age_gauge.labels(
+                    image_type, cloud_name, release).set(serial_age)
 
     if not dryrun:
         print('Pushing data...')
