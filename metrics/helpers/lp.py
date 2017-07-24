@@ -26,6 +26,14 @@ def get_person_name(person_link):
     return None
 
 
+def get_person_by_email(email):
+    """Return person object for email."""
+    try:
+        return LP.people.getByEmail(email=email)
+    except:
+        return None
+
+
 def get_ubuntu():
     """Return Ubuntu specific distribution."""
     return LP.distributions['ubuntu']
