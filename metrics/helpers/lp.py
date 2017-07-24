@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 import sys
 
 from launchpadlib.launchpad import Launchpad
+from lazr.restfulclient.errors import BadRequest
 
 LP = Launchpad.login_anonymously('metrics', 'production', version='devel')
 
@@ -30,7 +31,7 @@ def get_person_by_email(email):
     """Return person object for email."""
     try:
         return LP.people.getByEmail(email=email)
-    except:
+    except BadRequest:
         return None
 
 

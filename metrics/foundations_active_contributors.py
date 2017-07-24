@@ -15,6 +15,7 @@ from metrics.helpers import util
 
 
 def get_all_registered_uploaders():
+    """Query launchpad for the list of total uploaders."""
     # Since we have no easy and reliable way of getting people with upload
     # rights from packagesets, we only now look at core-dev and motu.
     teams = ['ubuntu-core-dev', 'motu']
@@ -29,6 +30,7 @@ def get_all_registered_uploaders():
 
 
 def get_canonical_noncanonical_uploaders(conn):
+    """Return lists of recent Ubuntu uploaders per affiliation."""
     cur = conn.cursor()
 
     cur.execute("""
@@ -91,8 +93,8 @@ def get_canonical_noncanonical_uploaders(conn):
             if not found:
                 # Another guess - let's try to take the display name and turn
                 # it into a canonical e-mail.
-                email = ('%s@canonical.com' 
-                    % lp_person.display_name.replace(' ', '.'))
+                email = ('%s@canonical.com'
+                         % lp_person.display_name.replace(' ', '.'))
                 try_user = lp.get_person_by_email(email)
                 if try_user and try_user == lp_person:
                     canonical_usernames.add(lp_person.name)
@@ -110,6 +112,7 @@ def get_canonical_noncanonical_uploaders(conn):
 
 
 def collect(conn, dryrun=False):
+    """Collect and push uploader-related metrics."""
     canonical, noncanonical = get_canonical_noncanonical_uploaders(conn)
     uploaders = get_all_registered_uploaders()
 
