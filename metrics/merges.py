@@ -18,7 +18,7 @@ URL_TEMPLATE = 'https://merges.ubuntu.com/stats-{launchpad_team_name}.txt'
 def get_merge_data(team_name):
     """Get statistics from merge-o-matic."""
     results = {'local': 0, 'modified': 0, 'needs-merge': 0, 'needs-sync': 0,
-               'repackaged': 0, 'total': 0, 'unmodified': 0}
+               'repackaged': 0, 'unmodified': 0}
     results_by_component = defaultdict(dict)
 
     metric_url = URL_TEMPLATE.format(
@@ -36,6 +36,8 @@ def get_merge_data(team_name):
         values = entry_parts[3:]
         for value in values:
             key, value = value.split('=')
+            if key == 'total':
+                continue
             results[key] = results[key] + int(value)
             results_by_component[component][key] = int(value)
 
