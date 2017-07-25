@@ -31,6 +31,8 @@ def get_merge_data(team_name):
     for entry in entries:
         entry_parts = entry.strip().split(' ')
         component = entry_parts[2]
+        if component != 'main':
+            continue
         values = entry_parts[3:]
         for value in values:
             key, value = value.split('=')
