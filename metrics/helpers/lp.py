@@ -8,8 +8,8 @@ Joshua Powers <josh.powers@canonical.com>
 from datetime import datetime, timedelta
 import sys
 
+from launchpadlib.errors import BadRequest
 from launchpadlib.launchpad import Launchpad
-from lazr.restfulclient.errors import BadRequest
 
 LP = Launchpad.login_anonymously('metrics', 'production', version='devel')
 

@@ -29,9 +29,9 @@ def get_all_registered_uploaders():
     return len(uploaders)
 
 
-def get_canonical_noncanonical_uploaders(conn):
+def get_uploaders_per_affiliation(connection):
     """Return lists of recent Ubuntu uploaders per affiliation."""
-    cur = conn.cursor()
+    cur = connection.cursor()
 
     cur.execute("""
         select changed_by_email
@@ -113,7 +113,7 @@ def get_canonical_noncanonical_uploaders(conn):
 
 def collect(conn, dryrun=False):
     """Collect and push uploader-related metrics."""
-    canonical, noncanonical = get_canonical_noncanonical_uploaders(conn)
+    canonical, noncanonical = get_uploaders_per_affiliation(conn)
     uploaders = get_all_registered_uploaders()
 
     print('Active Canonical Uploaders: %s' % canonical)
@@ -145,15 +145,15 @@ def collect(conn, dryrun=False):
 if __name__ == '__main__':
     psycopg2.extensions.register_type(psycopg2.extensions.UNICODE)
     psycopg2.extensions.register_type(psycopg2.extensions.UNICODEARRAY)
-    conn = psycopg2.connect(
+    CONN = psycopg2.connect(
         database='udd',
         host='udd-mirror.debian.net',
         user='udd-mirror',
         password='udd-mirror'
         )
-    conn.set_client_encoding('UTF-8')
+    CONN.set_client_encoding('UTF-8')
 
     PARSER = argparse.ArgumentParser()
     PARSER.add_argument('--dryrun', action='store_true')
     ARGS = PARSER.parse_args()
-    collect(conn, ARGS.dryrun)
+    collect(CONN, ARGS.dryrun)
