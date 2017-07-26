@@ -8,6 +8,7 @@ Joshua Powers <josh.powers@canonical.com>
 from datetime import datetime, timedelta
 import sys
 
+from launchpadlib.errors import BadRequest
 from launchpadlib.launchpad import Launchpad
 
 LP = Launchpad.login_anonymously('metrics', 'production', version='devel')
@@ -24,6 +25,14 @@ def get_person_name(person_link):
         return LP.load(person_link).name
 
     return None
+
+
+def get_person_by_email(email):
+    """Return person object for email."""
+    try:
+        return LP.people.getByEmail(email=email)
+    except BadRequest:
+        return None
 
 
 def get_ubuntu():
