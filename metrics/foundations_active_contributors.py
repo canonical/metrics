@@ -14,10 +14,12 @@ from metrics.helpers import lp
 from metrics.helpers import util
 
 
-def get_all_registered_uploaders():
-    """Query launchpad for the list of total uploaders."""
+def main_universe_uploader_count():
+    """Query launchpad for the count of main/universe uploaders."""
     # Since we have no easy and reliable way of getting people with upload
     # rights from packagesets, we only now look at core-dev and motu.
+    # This should be replaced by a proper function that collects the count
+    # for *all* archive upload rights (LP: #1705996 is needed).
     teams = ['ubuntu-core-dev', 'motu']
     uploaders = set()
     for team in teams:
@@ -29,9 +31,45 @@ def get_all_registered_uploaders():
     return len(uploaders)
 
 
-def get_uploaders_per_affiliation(connection):
-    """Return lists of recent Ubuntu uploaders per affiliation."""
-    cur = connection.cursor()
+def setup_udd_connection():
+    """Establish a connection to the UDD database."""
+    psycopg2.extensions.register_type(psycopg2.extensions.UNICODE)
+    psycopg2.extensions.register_type(psycopg2.extensions.UNICODEARRAY)
+    connection = psycopg2.connect(
+        database='udd',
+        host='udd-mirror.debian.net',
+        user='udd-mirror',
+        password='udd-mirror'
+        )
+    connection.set_client_encoding('UTF-8')
+    return connection
+
+
+def try_guessing_by_email_mangling(email, user):
+    """Try guessing if non-Canonical email belongs to a Canonical user."""
+    # If the uploader email address is an ubuntu.com one we can see if
+    # they are a Canonical employee by checking to see if a matching
+    # canonical.com email address is registered in Launchpad
+    if '@ubuntu.com' in email:
+        try_user = lp.get_person_by_email(
+            email.replace('@ubuntu.com', '@canonical.com'))
+        if try_user and try_user == user:
+            return True
+
+    # Another guess - let's try to take the display name and turn
+    # it into a canonical e-mail.
+    try_email = ('%s@canonical.com'
+                 % user.display_name.replace(' ', '.'))
+    try_user = lp.get_person_by_email(try_email)
+    if try_user and try_user == user:
+        return True
+
+    return False
+
+
+def per_affiliation_uploader_count():
+    """Return counts of recent Ubuntu uploaders per affiliation."""
+    cur = setup_udd_connection().cursor()
 
     cur.execute("""
         select changed_by_email
@@ -41,6 +79,7 @@ def get_uploaders_per_affiliation(connection):
           and changed_by_email != 'archive@ubuntu.com'
           and changed_by_email != 'katie@jackass.ubuntu.com'
           and changed_by_email != 'language-packs@ubuntu.com'
+          and changed_by_email != 'N/A'
         group by changed_by_email;
 """)
     uploaders = cur.fetchall()
@@ -51,8 +90,6 @@ def get_uploaders_per_affiliation(connection):
     canonical_usernames = set()
     for uploader in uploaders:
         uploader = uploader[0]
-        if uploader == 'N/A':
-            continue
 
         # Now, sadly, some ugly guesswork needs to happen.
         # The canonical team is private so we can't really check if a user is a
@@ -76,28 +113,9 @@ def get_uploaders_per_affiliation(connection):
 
         # Now we start guessing.  Those that we guess to be canonical end up in
         # the canonical_usernames bucket.
-        if '@canonical.com' in uploader:
+        if ('@canonical.com' in uploader or
+                try_guessing_by_email_mangling(uploader, lp_person)):
             canonical_usernames.add(lp_person.name)
-        else:
-            found = False
-            # If there is an ubuntu.com e-mail, maybe substituting it with a
-            # canonical works?  If we end up with the same user as before, it's
-            # a hit.
-            if '@ubuntu.com' in uploader:
-                try_user = lp.get_person_by_email(
-                    uploader.replace('@ubuntu.com', '@canonical.com'))
-                if try_user and try_user == lp_person:
-                    canonical_usernames.add(lp_person.name)
-                    found = True
-
-            if not found:
-                # Another guess - let's try to take the display name and turn
-                # it into a canonical e-mail.
-                email = ('%s@canonical.com'
-                         % lp_person.display_name.replace(' ', '.'))
-                try_user = lp.get_person_by_email(email)
-                if try_user and try_user == lp_person:
-                    canonical_usernames.add(lp_person.name)
 
     # Only after scanning all e-mail addresses we can definitely be sure how
     # many canonical and non-canonical usernames we had (since some might do
@@ -111,31 +129,28 @@ def get_uploaders_per_affiliation(connection):
     return (canonical, noncanonical)
 
 
-def collect(conn, dryrun=False):
+def collect(dryrun=False):
     """Collect and push uploader-related metrics."""
-    canonical, noncanonical = get_uploaders_per_affiliation(conn)
-    uploaders = get_all_registered_uploaders()
+    canonical, noncanonical = per_affiliation_uploader_count()
+    uploaders = main_universe_uploader_count()
 
     print('Active Canonical Uploaders: %s' % canonical)
     print('Active Non-Canonical Uploaders: %s' % noncanonical)
-    print('Current Users with Upload Rights: %s' % uploaders)
+    print('Current Users with Main/Universe Upload Rights: %s' % uploaders)
 
     if not dryrun:
         print('Pushing data...')
         registry = CollectorRegistry()
 
-        Gauge('foundations_recent_canonical_uploaders',
-              'Active Canonical Uploaders',
-              None,
-              registry=registry).set(canonical)
+        gauge = Gauge('foundations_recent_uploaders',
+                      'Active Recent Ubuntu Uploaders',
+                      ['affiliation'],
+                      registry=registry)
+        gauge.labels('Canonical Uploaders').set(canonical)
+        gauge.labels('Non-Canonical Uploaders').set(noncanonical)
 
-        Gauge('foundations_recent_noncanonical_uploaders',
-              'Active Non-Canonical Uploaders',
-              None,
-              registry=registry).set(noncanonical)
-
-        Gauge('foundations_total_uploaders',
-              'Current Users with Upload Rights',
+        Gauge('foundations_main_universe_uploaders',
+              'Current Users with Main/Universe Upload Rights',
               None,
               registry=registry).set(uploaders)
 
@@ -143,17 +158,7 @@ def collect(conn, dryrun=False):
 
 
 if __name__ == '__main__':
-    psycopg2.extensions.register_type(psycopg2.extensions.UNICODE)
-    psycopg2.extensions.register_type(psycopg2.extensions.UNICODEARRAY)
-    CONN = psycopg2.connect(
-        database='udd',
-        host='udd-mirror.debian.net',
-        user='udd-mirror',
-        password='udd-mirror'
-        )
-    CONN.set_client_encoding('UTF-8')
-
     PARSER = argparse.ArgumentParser()
     PARSER.add_argument('--dryrun', action='store_true')
     ARGS = PARSER.parse_args()
-    collect(CONN, ARGS.dryrun)
+    collect(ARGS.dryrun)
