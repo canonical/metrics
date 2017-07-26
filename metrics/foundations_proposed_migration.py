@@ -33,10 +33,10 @@ def get_proposed_migration_queue(registry):
     gauge.labels('Valid Candidates').set(valid)
     gauge.labels('Not Considered').set(not_considered)
 
-    gauge = Gauge('foundations_devel_proposed_migration_age',
-                  'Median age of packages waiting in devel-proposed',
-                  None,
-                  registry=registry).set(median_age)
+    Gauge('foundations_devel_proposed_migration_age',
+          'Median age of packages waiting in devel-proposed',
+          None,
+          registry=registry).set(median_age)
 
     Gauge('foundations_devel_proposed_migration_backlog',
           'Size of devel-proposed backlog (packages x days)',
