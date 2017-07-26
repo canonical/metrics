@@ -19,7 +19,6 @@ except ImportError:
     from urllib2 import URLError
     from urllib2 import urlopen
 
-import git
 from prometheus_client import push_to_gateway
 
 INSTANCE = 'ubuntu-server'
@@ -38,6 +37,7 @@ def bzr_contributors(pkg):
 
 
 def git_contributors(git_url):
+    import git
     """Return numbers on git project contributors."""
     with tempfile.TemporaryDirectory() as temp:
         print('Cloning %s into %s' % (git_url, temp))
