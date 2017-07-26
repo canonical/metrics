@@ -40,12 +40,12 @@ def get_ubuntu():
     return LP.distributions['ubuntu']
 
 
-def get_bug_count(package, status=None):
-    """Report total bugs for a package."""
+def get_bug_count(project, status=None):
+    """Report count of open or $status bugs for a project."""
     try:
-        project = LP.projects[package]
+        project = LP.projects[project]
     except KeyError:
-        print('Invalid package name: %s' % package)
+        print('Invalid project name: %s' % project)
         sys.exit(1)
 
     if status:
@@ -57,7 +57,7 @@ def get_bug_count(package, status=None):
 
 
 def get_ubuntu_bug_count(package, status=None):
-    """Report total bugs in Ubuntu for a package."""
+    """Report count of open or $status bugs in Ubuntu for a package."""
     distro = LP.distributions['Ubuntu']
     src_pkg = distro.getSourcePackage(name=package)
 
@@ -89,14 +89,14 @@ def get_bzr_active_review_count(package):
 
 
 def get_team_backlog_count(team, distro):
-    """Report total bugs for Launchpad team on a distro."""
+    """Report count of open bugs for Launchpad team on a distro."""
     lp_distro = LP.distributions[distro]
     lp_team = LP.people[team]
     return len(lp_distro.searchTasks(bug_subscriber=lp_team))
 
 
 def get_team_daily_triage_count(team, distro, blacklist=None):
-    """Report total bugs for a Launchpad team that need triage."""
+    """Report count of open bugs for a Launchpad team that need triage."""
     lp_distro = LP.distributions[distro]
     lp_team = LP.people[team]
 
