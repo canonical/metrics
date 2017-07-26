@@ -23,8 +23,8 @@ def get_proposed_migration_queue(registry):
 
     csv_handle = csv.reader(csvdata)
     latest = list(csv_handle)[-1]
-    valid, not_considered, discard, median_age = [int(x) for x in latest[1:]]
-    del discard
+    valid, not_considered = [int(x) for x in latest[1:3]]
+    median_age, backlog = [int(x) for x in latest[4:6]]
 
     gauge = Gauge('foundations_devel_proposed_migration_size',
                   'Number of packages waiting in devel-proposed',
@@ -33,10 +33,15 @@ def get_proposed_migration_queue(registry):
     gauge.labels('Valid Candidates').set(valid)
     gauge.labels('Not Considered').set(not_considered)
 
-    gauge = Gauge('foundations_devel_proposed_migration_age',
-                  'Median age of packages waiting in devel-proposed',
-                  None,
-                  registry=registry).set(median_age)
+    Gauge('foundations_devel_proposed_migration_age',
+          'Median age of packages waiting in devel-proposed',
+          None,
+          registry=registry).set(median_age)
+
+    Gauge('foundations_devel_proposed_migration_backlog',
+          'Size of devel-proposed backlog (packages x days)',
+          None,
+          registry=registry).set(backlog)
 
 
 if __name__ == '__main__':
