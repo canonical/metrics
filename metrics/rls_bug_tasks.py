@@ -6,6 +6,7 @@ Daniel Watkins <daniel.watkins@canonical.com>
 """
 import argparse
 import re
+import sys
 
 import requests
 from prometheus_client import CollectorRegistry, Gauge
@@ -30,8 +31,13 @@ def _get_latest_release_prefix():
 def _get_tag_counts(release_prefix, tag):
     response = requests.get(REPORT_URL_PATTERN.format(
         release_prefix=release_prefix, tag=tag))
-    return dict(re.findall(r'<span id="(.+)-total">(\d+)</span>',
-                           response.text))
+    tag_pairs = re.findall(r'<span id="(.+)-total">(\d+)</span>',
+                           response.text)
+    if len(tag_pairs) == 0:
+        print('No tag counts found; report may be broken. Exiting now to'
+              ' avoid pushing invalid data.')
+        sys.exit(1)
+    return dict(tag_pairs)
 
 
 def collect(dryrun=False):
