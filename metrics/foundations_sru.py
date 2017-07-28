@@ -26,7 +26,7 @@ from metrics.helpers import util
 
 
 def sru_queue_count():
-    """Get the number of UNAPPROVED uploads for each series."""
+    """Get the number of UNAPPROVED uploads for proposed for each series."""
     ubuntu = lp.get_ubuntu()
     stable_series = [s for s in ubuntu.series if s.active]
     stable_series.remove(ubuntu.current_series)
@@ -35,19 +35,17 @@ def sru_queue_count():
     for series in stable_series:
         per_series[series.name] = len(series.getPackageUploads(
             status='Unapproved',
-            pocket='Proposed',
-            archive=ubuntu.main_archive))
+            pocket='Proposed'))
 
     return per_series
 
 
-def sru_ready_for_updates_count():
-    """Get the number of verified -proposed packages."""
+def sru_verified_and_ready_count():
+    """Get the number -proposed packages that are verified and good to go."""
     # Most of this code is taken from lp:~brian-murray/+junk/bug-agent, just
     # modified to do what we want.
     url = 'http://people.canonical.com/~ubuntu-archive/pending-sru.html'
-    report_page = urllib.request.urlopen(url)
-    report_contents = report_page.read()
+    report_contents = urllib.request.urlopen(url).read()
     try:
         soup = BeautifulSoup(report_contents, 'lxml')
     except HTMLParseError:
@@ -71,6 +69,12 @@ def sru_ready_for_updates_count():
             length = len(cols)
             if length == 0:
                 continue
+            failure = cols[0].text
+            if ('Failed' in failure or
+                    'Dependency wait' in failure or
+                    'Cancelled' in failure or
+                    'Regression in autopkgtest' in failure):
+                continue
             if int(cols[5].string) >= 7:
                 bugs = cols[4].findChildren('a')
                 verified = True
@@ -87,9 +91,9 @@ def sru_ready_for_updates_count():
 def collect(dryrun=False):
     """Collect and push SRU-related metrics."""
     sru_queues = sru_queue_count()
-    ready_srus = sru_ready_for_updates_count()
+    ready_srus = sru_verified_and_ready_count()
 
-    print('Number of Uploads in the Unapproved Queue per Series:')
+    print('Number of Proposed Uploads in the Unapproved Queue per Series:')
     for series, count in sru_queues.items():
         print('%s: %s' % (series, count))
 
@@ -101,17 +105,19 @@ def collect(dryrun=False):
         print('Pushing data...')
         registry = CollectorRegistry()
 
-        gauge = Gauge('foundations_sru_unapproved_count',
-                      'Number of Uploads in the Unapproved Queue per Series',
-                      ['series'],
-                      registry=registry)
+        gauge = Gauge(
+            'foundations_sru_unapproved_proposed_count',
+            'Number of Proposed Uploads in the Unapproved Queue per Series',
+            ['series'],
+            registry=registry)
         for series, count in sru_queues.items():
             gauge.labels(series).set(count)
 
-        gauge = Gauge('foundations_sru_verified_count',
-                      'Number of Publishable Updates in Proposed per Series',
-                      ['series'],
-                      registry=registry)
+        gauge = Gauge(
+            'foundations_sru_verified_and_ready_count',
+            'Number of Publishable Updates in Proposed per Series',
+            ['series'],
+            registry=registry)
         for series, count in ready_srus.items():
             gauge.labels(series).set(count)
 
