@@ -51,13 +51,13 @@ def collect(dryrun=False):
         print('Pushing data...')
         registry = CollectorRegistry()
         gauge = Gauge(
-            'rls_bug_tasks', '', ['tag', 'team_name'],
+            'distro_rls_bug_tasks', '', ['tag', 'team_name'],
             registry=registry)
         for tag in TAGS:
             for team_name in counts[tag]:
                 gauge.labels(tag, team_name).set(counts[tag][team_name])
 
-        util.push2gateway('rls_bug_tasks', registry)
+        util.push2gateway('distro_rls_bug_tasks', registry)
 
 
 if __name__ == '__main__':
