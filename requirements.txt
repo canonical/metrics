@@ -1,6 +1,7 @@
+    bs4
     httplib2
     gitpython
     google-api-python-client
     prometheus_client
     psycopg2
-    bs4
+    requests

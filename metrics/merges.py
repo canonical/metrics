@@ -17,8 +17,6 @@ URL_TEMPLATE = 'https://merges.ubuntu.com/stats-{launchpad_team_name}.txt'
 
 def get_merge_data(team_name):
     """Get statistics from merge-o-matic."""
-    results = {'local': 0, 'modified': 0, 'needs-merge': 0, 'needs-sync': 0,
-               'repackaged': 0, 'unmodified': 0}
     results_by_component = defaultdict(dict)
 
     metric_url = URL_TEMPLATE.format(
@@ -38,16 +36,14 @@ def get_merge_data(team_name):
             key, value = value.split('=')
             if key == 'total':
                 continue
-            results[key] = results[key] + int(value)
             results_by_component[component][key] = int(value)
 
-    return results, results_by_component
+    return results_by_component
 
 
 def collect(team_name, dryrun=False):
     """Submit data to Push Gateway."""
-    results, results_by_component = get_merge_data(team_name)
-    print('%s' % (results,))
+    results_by_component = get_merge_data(team_name)
     print('%s' % (results_by_component,))
 
     if not dryrun:
@@ -61,36 +57,6 @@ def collect(team_name, dryrun=False):
                 labels = gauge.labels(component,  # pylint: disable=no-member
                                       status)
                 labels.set(results_by_component[component][status])
-
-        Gauge('{}_mom_local_total'.format(team_name),
-              '',
-              None,
-              registry=registry).set(results['local'])
-
-        Gauge('{}_mom_modified_total'.format(team_name),
-              '',
-              None,
-              registry=registry).set(results['modified'])
-
-        Gauge('{}_mom_needs_merge_total'.format(team_name),
-              '',
-              None,
-              registry=registry).set(results['needs-merge'])
-
-        Gauge('{}_mom_needs_sync_total'.format(team_name),
-              '',
-              None,
-              registry=registry).set(results['needs-sync'])
-
-        Gauge('{}_mom_repackaged_total'.format(team_name),
-              '',
-              None,
-              registry=registry).set(results['repackaged'])
-
-        Gauge('{}_mom_unmodified_total'.format(team_name),
-              '',
-              None,
-              registry=registry).set(results['unmodified'])
 
         util.push2gateway('%s-merge' % team_name, registry)
 
