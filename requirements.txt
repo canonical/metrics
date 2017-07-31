@@ -1,3 +1,4 @@
+    bs4
     httplib2
     gitpython
     google-api-python-client
