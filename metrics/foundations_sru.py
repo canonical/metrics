@@ -106,7 +106,7 @@ def collect(dryrun=False):
         registry = CollectorRegistry()
 
         gauge = Gauge(
-            'foundations_sru_unapproved_proposed_count',
+            'distro_sru_unapproved_proposed_count',
             'Number of Proposed Uploads in the Unapproved Queue per Series',
             ['series'],
             registry=registry)
@@ -114,7 +114,7 @@ def collect(dryrun=False):
             gauge.labels(series).set(count)
 
         gauge = Gauge(
-            'foundations_sru_verified_and_ready_count',
+            'distro_sru_verified_and_ready_count',
             'Number of Publishable Updates in Proposed per Series',
             ['series'],
             registry=registry)
