@@ -44,13 +44,13 @@ curl -X DELETE http://127.0.0.1:9091/metrics/job/bug_totals
 the following:
 
 ```
-curl -X DELETE -g 'http://PROMETHEUS_IP:9090/api/v1/series?match[]=METRICNAME'
+curl -g -X DELETE 'http://PROMETHEUS_IP:9090/api/v1/series?match[]=METRICNAME'
 ```
 
 For example, to delete on the localhost the metric called 'bug_totals':
 
 ```
-curl -X DELETE -g 'http://127.0.0.1/9090/api/v1/series?match[]=bug_totals'
+curl -g -X DELETE 'http://127.0.0.1/9090/api/v1/series?match[]=bug_totals'
 ```
 
 If the metric was sucessfully deleted a message such as a following will
