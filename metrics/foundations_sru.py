@@ -41,8 +41,7 @@ def sru_queue_count():
 
 
 def sru_ages():
-    """Determine information about the age of UNAPPROVED uploads for proposed
-       for each series."""
+    """Determine age of UNAPPROVED uploads for proposed for each series."""
     from datetime import datetime
     ubuntu = lp.get_ubuntu()
     stable_series = [s for s in ubuntu.series if s.active]
@@ -63,6 +62,7 @@ def sru_ages():
                            upload.date_created.replace(tzinfo=None)).days
             if age_in_days > oldest_age_in_days:
                 oldest_age_in_days = age_in_days
+            # items in the queue for > 10 days should be considered late
             if age_in_days > 10:
                 backlog_age += age_in_days - 10
                 backlog_count += 1
