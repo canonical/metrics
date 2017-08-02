@@ -62,7 +62,8 @@ def sru_ages():
                            upload.date_created.replace(tzinfo=None)).days
             if age_in_days > oldest_age_in_days:
                 oldest_age_in_days = age_in_days
-            # items in the queue for > 10 days should be considered late
+            # items in the queue for > 10 days have gone through at least a
+            # weeks worth of reviewers and should be considered late
             if age_in_days > 10:
                 backlog_age += age_in_days - 10
                 backlog_count += 1
