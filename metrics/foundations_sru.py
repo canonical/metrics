@@ -199,7 +199,7 @@ def collect(dryrun=False):
         for series, count in ready_srus.items():
             gauge.labels(series).set(count)
 
-        util.push2gateway('triage', registry)
+        util.push2gateway('foundations-sru', registry)
 
 
 if __name__ == '__main__':
