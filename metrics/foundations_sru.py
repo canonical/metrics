@@ -40,7 +40,7 @@ def sru_queue_count():
     return per_series
 
 
-def sru_ages():
+def unapproved_sru_ages():
     """Determine age of UNAPPROVED uploads for proposed for each series."""
     from datetime import datetime
     ubuntu = lp.get_ubuntu()
@@ -123,11 +123,73 @@ def sru_verified_and_ready_count():
     return ready_srus
 
 
+def proposed_package_ages():
+    """Determine age of packages in -proposed that are unreleaseable."""
+    # Most of this code is taken from lp:~brian-murray/+junk/bug-agent, just
+    # modified to do what we want.
+    url = 'http://people.canonical.com/~ubuntu-archive/pending-sru.html'
+    report_contents = urllib.request.urlopen(url).read()
+    try:
+        soup = BeautifulSoup(report_contents, 'lxml')
+    except HTMLParseError:
+        logging.error('Error parsing SRU report')
+        return
+
+    per_series = {}
+    tables = soup.findAll('table')
+    for table in tables:
+        if not table.has_attr('id'):
+            continue
+
+        release = table.previous.previous
+        if release == 'Upload queue status at a glance:':
+            continue
+
+        per_series[release] = {}
+        backlog_count = 0
+        backlog_age = 0
+        trs = table.findAll('tr')
+        for tag in trs:
+            cols = tag.findAll('td')
+            length = len(cols)
+            if length == 0:
+                continue
+            failure = cols[0].text
+            age_in_days = int(cols[5].string)
+            # give the SRU 14 days to be verified
+            if age_in_days > 14:
+                bugs = cols[4].findChildren('a')
+                verified = True
+                # there is a failure so consider it unverified
+                if ('Failed' in failure or
+                        'Dependency wait' in failure or
+                        'Cancelled' in failure or
+                        'Regression in autopkgtest' in failure):
+                    verified = False
+                for bug in bugs:
+                    if not verified:
+                        break
+                    if 'verificationfailed' in bug['class']:
+                        break
+                    if 'verified' not in bug['class']:
+                        verified = False
+                        break
+                if not verified:
+                    backlog_count += 1
+                    backlog_age += age_in_days - 14
+                    # print('%s old and unverified' % cols[0].find('a').text)
+        per_series[release]['fourteen_day_backlog_count'] = backlog_count
+        per_series[release]['fourteen_day_backlog_age'] = backlog_age
+
+    return per_series
+
+
 def collect(dryrun=False):
     """Collect and push SRU-related metrics."""
     sru_queues = sru_queue_count()
     ready_srus = sru_verified_and_ready_count()
-    sru_age_data = sru_ages()
+    proposed_sru_age_data = proposed_package_ages()
+    unapproved_sru_age_data = unapproved_sru_ages()
 
     q_name = 'Proposed Uploads in the Unapproved Queue per Series'
 
@@ -136,21 +198,38 @@ def collect(dryrun=False):
         print('%s: %s' % (series, count))
 
     print('Age in days of oldest %s:' % q_name.replace('Uploads', 'Upload'))
-    for series in sru_age_data:
-        print('%s: %s' % (series, sru_age_data[series]['oldest_age_in_days']))
+    for series in unapproved_sru_age_data:
+        print('%s: %s' %
+              (series, unapproved_sru_age_data[series]['oldest_age_in_days']))
 
     print('Backlog age in days of %s:' % q_name)
-    for series in sru_age_data:
-        print('%s: %s' % (series, sru_age_data[series]['ten_day_backlog_age']))
+    for series in unapproved_sru_age_data:
+        print('%s: %s' %
+              (series, unapproved_sru_age_data[series]['ten_day_backlog_age']))
 
     print('Number of backlogged %s:' % q_name)
-    for series in sru_age_data:
+    for series in unapproved_sru_age_data:
         print('%s: %s' %
-              (series, sru_age_data[series]['ten_day_backlog_count']))
+              (series,
+               unapproved_sru_age_data[series]['ten_day_backlog_count']))
 
-    print('Number of Publishable Updates in Proposed per Series:')
+    category = 'Updates in Proposed per Series'
+
+    print('Number of Publishable %s:' % category)
     for series, count in ready_srus.items():
         print('%s: %s' % (series, count))
+
+    print('Number of backlogged Unreleasable %s:' % category)
+    for series in proposed_sru_age_data:
+        print('%s: %s' %
+              (series,
+               proposed_sru_age_data[series]['fourteen_day_backlog_count']))
+
+    print('Backlog age in days of Unreleasable %s' % category)
+    for series in proposed_sru_age_data:
+        print('%s: %s' %
+              (series,
+               proposed_sru_age_data[series]['fourteen_day_backlog_age']))
 
     if not dryrun:
         print('Pushing data...')
@@ -169,27 +248,27 @@ def collect(dryrun=False):
             'Age in days of oldest %s' % q_name.replace('Uploads', 'Upload'),
             ['series'],
             registry=registry)
-        for series in sru_age_data:
+        for series in unapproved_sru_age_data:
             gauge.labels(series).set(
-                sru_age_data[series]['oldest_age_in_days'])
+                unapproved_sru_age_data[series]['oldest_age_in_days'])
 
         gauge = Gauge(
             'distro_sru_unapproved_proposed_ten_day_backlog_age',
             'Backlog age in days of %s' % q_name,
             ['series'],
             registry=registry)
-        for series in sru_age_data:
+        for series in unapproved_sru_age_data:
             gauge.labels(series).set(
-                sru_age_data[series]['ten_day_backlog_age'])
+                unapproved_sru_age_data[series]['ten_day_backlog_age'])
 
         gauge = Gauge(
             'distro_sru_unapproved_proposed_ten_day_backlog_count',
             'Number of backlogged %s' % q_name,
             ['series'],
             registry=registry)
-        for series in sru_age_data:
+        for series in unapproved_sru_age_data:
             gauge.labels(series).set(
-                sru_age_data[series]['ten_day_backlog_count'])
+                unapproved_sru_age_data[series]['ten_day_backlog_count'])
 
         gauge = Gauge(
             'distro_sru_verified_and_ready_count',
@@ -198,6 +277,24 @@ def collect(dryrun=False):
             registry=registry)
         for series, count in ready_srus.items():
             gauge.labels(series).set(count)
+
+        gauge = Gauge(
+            'distro_sru_unreleaseable_proposed_fourteen_day_backlog_age',
+            'Backlog age in days of Unreleasable %s' % category,
+            ['series'],
+            registry=registry)
+        for series in proposed_sru_age_data:
+            gauge.labels(series).set(
+                proposed_sru_age_data[series]['fourteen_day_backlog_age'])
+
+        gauge = Gauge(
+            'distro_sru_unreleaseable_proposed_fourteen_day_backlog_count',
+            'Number of backlogged Unreleasable %s' % category,
+            ['series'],
+            registry=registry)
+        for series in proposed_sru_age_data:
+            gauge.labels(series).set(
+                proposed_sru_age_data[series]['fourteen_day_backlog_count'])
 
         util.push2gateway('triage', registry)
 
