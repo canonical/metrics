@@ -308,23 +308,26 @@ def collect(dryrun=False):
         for series, count in ready_srus.items():
             gauge.labels(series).set(count)
 
-        gauge = Gauge(
-            'distro_sru_unreleaseable_proposed_fourteen_day_backlog_age',
-            'Backlog age in days of Unreleasable %s' % category,
-            ['series'],
-            registry=registry)
-        for series in proposed_sru_age_data:
-            gauge.labels(series).set(
-                proposed_sru_age_data[series]['fourteen_day_backlog_age'])
+        for cat in ('unverified', 'verified', 'vfailed'):
+            gauge = Gauge(
+                'distro_sru_%s_proposed_fourteen_day_backlog_age' % cat,
+                'Backlog age in days of %s %s' % (cat, topic),
+                ['series'],
+                registry=registry)
+            for series in proposed_sru_age_data:
+                gauge.labels(series).set(
+                    proposed_sru_age_data[series]
+                    ['fourteen_day_%s_backlog_age' % cat])
 
-        gauge = Gauge(
-            'distro_sru_unreleaseable_proposed_fourteen_day_backlog_count',
-            'Number of backlogged Unreleasable %s' % category,
-            ['series'],
-            registry=registry)
-        for series in proposed_sru_age_data:
-            gauge.labels(series).set(
-                proposed_sru_age_data[series]['fourteen_day_backlog_count'])
+            gauge = Gauge(
+                'distro_sru_%s_proposed_fourteen_day_backlog_count' % cat,
+                'Number of backlogged %s %s' % (cat, topic),
+                ['series'],
+                registry=registry)
+            for series in proposed_sru_age_data:
+                gauge.labels(series).set(
+                    proposed_sru_age_data[series]
+                    ['fourteen_day_%s_backlog_count' % cat])
 
         util.push2gateway('triage', registry)
 
