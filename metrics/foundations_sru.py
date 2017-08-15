@@ -124,7 +124,7 @@ def sru_verified_and_ready_count():
 
 
 def proposed_package_ages():
-    """Determine age of packages in -proposed that are unreleaseable."""
+    """Categorize and determine age of packages in -proposed."""
     # Most of this code is taken from lp:~brian-murray/+junk/bug-agent, just
     # modified to do what we want.
     url = 'http://people.canonical.com/~ubuntu-archive/pending-sru.html'
@@ -146,8 +146,12 @@ def proposed_package_ages():
             continue
 
         per_series[release] = {}
-        backlog_count = 0
-        backlog_age = 0
+        unverified_backlog_count = 0
+        unverified_backlog_age = 0
+        verified_backlog_count = 0
+        verified_backlog_age = 0
+        vfailed_backlog_count = 0
+        vfailed_backlog_age = 0
         trs = table.findAll('tr')
         for tag in trs:
             cols = tag.findAll('td')
@@ -159,27 +163,50 @@ def proposed_package_ages():
             # give the SRU 14 days to be verified
             if age_in_days > 14:
                 bugs = cols[4].findChildren('a')
-                verified = True
+                category = 'unknown'
                 # there is a failure so consider it unverified
                 if ('Failed' in failure or
                         'Dependency wait' in failure or
                         'Cancelled' in failure or
                         'Regression in autopkgtest' in failure):
                     verified = False
+                    category = 'unverified'
                 for bug in bugs:
-                    if not verified:
-                        break
+                    # vfailed will overwrite the unverified status of an SRU
                     if 'verificationfailed' in bug['class']:
+                        category = 'vfailed'
                         break
                     if 'verified' not in bug['class']:
-                        verified = False
+                        category = 'unverified'
                         break
-                if not verified:
-                    backlog_count += 1
-                    backlog_age += age_in_days - 14
+                    if 'verified' in bug['class']:
+                        # if it is unverified for any reason then it can't be
+                        # isn't verified i.e. every bug needs verification
+                        if category != 'unverified':
+                            category = 'verified'
+                if category == 'unverified':
+                    unverified_backlog_count += 1
+                    unverified_backlog_age += age_in_days - 14
                     # print('%s old and unverified' % cols[0].find('a').text)
-        per_series[release]['fourteen_day_backlog_count'] = backlog_count
-        per_series[release]['fourteen_day_backlog_age'] = backlog_age
+                elif category == 'verified':
+                    verified_backlog_count += 1
+                    verified_backlog_age += age_in_days - 14
+                elif category == 'vfailed':
+                    vfailed_backlog_count += 1
+                    vfailed_backlog_age += age_in_days - 14
+
+        per_series[release]['fourteen_day_unverified_backlog_count'] = \
+            unverified_backlog_count
+        per_series[release]['fourteen_day_unverified_backlog_age'] = \
+            unverified_backlog_age
+        per_series[release]['fourteen_day_verified_backlog_count'] = \
+            verified_backlog_count
+        per_series[release]['fourteen_day_verified_backlog_age'] = \
+            verified_backlog_age
+        per_series[release]['fourteen_day_vfailed_backlog_count'] = \
+            vfailed_backlog_count
+        per_series[release]['fourteen_day_vfailed_backlog_age'] = \
+            vfailed_backlog_age
 
     return per_series
 
@@ -213,23 +240,26 @@ def collect(dryrun=False):
               (series,
                unapproved_sru_age_data[series]['ten_day_backlog_count']))
 
-    category = 'Updates in Proposed per Series'
+    topic = 'Updates in Proposed per Series'
 
-    print('Number of Publishable %s:' % category)
+    print('Number of Publishable %s:' % topic)
     for series, count in ready_srus.items():
         print('%s: %s' % (series, count))
 
-    print('Number of backlogged Unreleasable %s:' % category)
-    for series in proposed_sru_age_data:
-        print('%s: %s' %
-              (series,
-               proposed_sru_age_data[series]['fourteen_day_backlog_count']))
+    for category in ('unverified', 'verified', 'vfailed'):
+        print('Number of backlogged %s %s:' % (category, topic))
+        for series in proposed_sru_age_data:
+            print('%s: %s' %
+                  (series,
+                   proposed_sru_age_data[series]
+                   ['fourteen_day_%s_backlog_count' % category]))
 
-    print('Backlog age in days of Unreleasable %s' % category)
-    for series in proposed_sru_age_data:
-        print('%s: %s' %
-              (series,
-               proposed_sru_age_data[series]['fourteen_day_backlog_age']))
+        print('Backlog age in days of %s %s:' % (category, topic))
+        for series in proposed_sru_age_data:
+            print('%s: %s' %
+                  (series,
+                   proposed_sru_age_data[series]
+                   ['fourteen_day_%s_backlog_age' % category]))
 
     if not dryrun:
         print('Pushing data...')
