@@ -329,7 +329,7 @@ def collect(dryrun=False):
                     proposed_sru_age_data[series]
                     ['fourteen_day_%s_backlog_count' % cat])
 
-        util.push2gateway('triage', registry)
+        util.push2gateway('foundations-sru', registry)
 
 
 if __name__ == '__main__':
