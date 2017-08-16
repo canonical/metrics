@@ -22,7 +22,6 @@ except ImportError:
 from prometheus_client import push_to_gateway
 
 INSTANCE = 'ubuntu-server'
-PROMETHEUS_IP = os.environ.get('METRICS_PROMETHEUS', '10.245.168.18:9091')
 
 
 def bzr_contributors(pkg):
@@ -110,10 +109,20 @@ def run(cmd):
     return out, err, process.returncode
 
 
+def get_prometheus_ip():
+    """Determine Prometheus IP or exit if not set."""
+    key = 'METRICS_PROMETHEUS'
+    if key in os.environ:
+        return os.environ.get(key)
+    else:
+        print('ERROR: environment variable \'%s\' is not set! '
+              'Please set to Prometheus IP address and try again.' % key)
+        sys.exit(1)
+
 def push2gateway(pkg, registry):
     """Wrap around push_to_gateway."""
     try:
-        push_to_gateway(PROMETHEUS_IP,
+        push_to_gateway(get_prometheus_ip(),
                         job=pkg,
                         grouping_key={'instance': INSTANCE},
                         registry=registry)
