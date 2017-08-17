@@ -116,8 +116,9 @@ def get_prometheus_ip():
         return os.environ.get(key)
     else:
         print('ERROR: environment variable \'%s\' is not set! '
-              'Please set to Prometheus IP address and try again.' % key)
+              'Please set to pushgateway IP address and try again.' % key)
         sys.exit(1)
+
 
 def push2gateway(pkg, registry):
     """Wrap around push_to_gateway."""
