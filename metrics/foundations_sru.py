@@ -98,29 +98,49 @@ def sru_verified_and_ready_count():
             continue
 
         ready_srus[release] = 0
-        trs = table.findAll('tr')
-        for tag in trs:
-            cols = tag.findAll('td')
-            length = len(cols)
-            if length == 0:
-                continue
-            failure = cols[0].text
+        tdata = parse_table_rows(table)
+        for pkg in tdata:
+            failure = tdata[pkg]['failure']
             if ('Failed' in failure or
                     'Dependency wait' in failure or
                     'Cancelled' in failure or
                     'Regression in autopkgtest' in failure):
                 continue
-            if int(cols[5].string) >= 7:
-                bugs = cols[4].findChildren('a')
-                verified = True
-                for bug in bugs:
-                    if 'verified' not in bug['class']:
-                        verified = False
-                        break
-                if verified:
-                    ready_srus[release] += 1
+            if tdata[pkg]['age_in_days'] < 7:
+                continue
+            verified = True
+            for bug in tdata[pkg]['bugs']:
+                if 'verified' not in bug['class']:
+                    verified = False
+                    break
+            if verified:
+                ready_srus[release] += 1
 
     return ready_srus
+
+
+def parse_table_rows(bs4_table):
+    """Parse tables from the pending-sru report."""
+    # return a dict of the used table rows
+    # {package: {'failure': cols[0]text,
+    #            'age_in_days': int(cols[5].string,
+    #            'bugs': html of bugs
+    # }
+    data = {}
+    table_rows = bs4_table.findAll('tr')
+    for table_row in table_rows:
+        table_data = table_row.findAll('td')
+        length = len(table_data)
+        if length == 0:
+            continue
+        package = table_data[0].find('a').text
+        data[package] = {}
+        data[package]['failure'] = \
+            table_data[0].text.replace(package, '').strip()
+        data[package]['age_in_days'] = int(table_data[5].string)
+        bugs = table_data[4].findChildren('a')
+        data[package]['bugs'] = bugs
+    return data
 
 
 def proposed_package_ages():
@@ -152,47 +172,43 @@ def proposed_package_ages():
         verified_backlog_age = 0
         vfailed_backlog_count = 0
         vfailed_backlog_age = 0
-        trs = table.findAll('tr')
-        for tag in trs:
-            cols = tag.findAll('td')
-            length = len(cols)
-            if length == 0:
-                continue
-            failure = cols[0].text
-            age_in_days = int(cols[5].string)
+        tdata = parse_table_rows(table)
+        for pkg in tdata:
+            failure = tdata[pkg]['failure']
+            age_in_days = tdata[pkg]['age_in_days']
             # give the SRU 14 days to be verified
-            if age_in_days > 14:
-                bugs = cols[4].findChildren('a')
-                category = 'unknown'
-                # there is a failure so consider it unverified
-                if ('Failed' in failure or
-                        'Dependency wait' in failure or
-                        'Cancelled' in failure or
-                        'Regression in autopkgtest' in failure):
+            if age_in_days <= 14:
+                continue
+            category = 'unknown'
+            # there is a failure so consider it unverified
+            if ('Failed' in failure or
+                    'Dependency wait' in failure or
+                    'Cancelled' in failure or
+                    'Regression in autopkgtest' in failure):
+                category = 'unverified'
+            for bug in tdata[pkg]['bugs']:
+                # vfailed will overwrite the unverified status of an SRU
+                if 'verificationfailed' in bug['class']:
+                    category = 'vfailed'
+                    break
+                if 'verified' not in bug['class']:
                     category = 'unverified'
-                for bug in bugs:
-                    # vfailed will overwrite the unverified status of an SRU
-                    if 'verificationfailed' in bug['class']:
-                        category = 'vfailed'
-                        break
-                    if 'verified' not in bug['class']:
-                        category = 'unverified'
-                        break
-                    if 'verified' in bug['class']:
-                        # if it is unverified for any reason then it can't be
-                        # verified i.e. every bug needs verification
-                        if category != 'unverified':
-                            category = 'verified'
-                if category == 'unverified':
-                    unverified_backlog_count += 1
-                    unverified_backlog_age += age_in_days - 14
-                    # print('%s old and unverified' % cols[0].find('a').text)
-                elif category == 'verified':
-                    verified_backlog_count += 1
-                    verified_backlog_age += age_in_days - 14
-                elif category == 'vfailed':
-                    vfailed_backlog_count += 1
-                    vfailed_backlog_age += age_in_days - 14
+                    break
+                if 'verified' in bug['class']:
+                    # if it is unverified for any reason then it can't be
+                    # verified i.e. every bug needs verification
+                    if category != 'unverified':
+                        category = 'verified'
+            if category == 'unverified':
+                unverified_backlog_count += 1
+                unverified_backlog_age += age_in_days - 14
+                # print('%s old and unverified' % cols[0].find('a').text)
+            elif category == 'verified':
+                verified_backlog_count += 1
+                verified_backlog_age += age_in_days - 14
+            elif category == 'vfailed':
+                vfailed_backlog_count += 1
+                vfailed_backlog_age += age_in_days - 14
 
         per_series[release]['fourteen_day_unverified_backlog_count'] = \
             unverified_backlog_count
