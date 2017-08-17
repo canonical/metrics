@@ -169,7 +169,6 @@ def proposed_package_ages():
                         'Dependency wait' in failure or
                         'Cancelled' in failure or
                         'Regression in autopkgtest' in failure):
-                    verified = False
                     category = 'unverified'
                 for bug in bugs:
                     # vfailed will overwrite the unverified status of an SRU
@@ -181,7 +180,7 @@ def proposed_package_ages():
                         break
                     if 'verified' in bug['class']:
                         # if it is unverified for any reason then it can't be
-                        # isn't verified i.e. every bug needs verification
+                        # verified i.e. every bug needs verification
                         if category != 'unverified':
                             category = 'verified'
                 if category == 'unverified':
