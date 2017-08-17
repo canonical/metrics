@@ -95,6 +95,7 @@ def get_launchpad_team_name(team):
     mapping = {
         'foundations': 'foundations-bugs',
         'server': 'ubuntu-server',
+        'security': 'ubuntu-security',
     }
     return mapping[team]
 
