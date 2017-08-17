@@ -110,7 +110,7 @@ def run(cmd):
 
 
 def get_prometheus_ip():
-    """Determine Prometheus IP or exit if not set."""
+    """Determine Prometheus pushgateway IP or exit if not set."""
     key = 'METRICS_PROMETHEUS'
     if key in os.environ:
         return os.environ.get(key)
