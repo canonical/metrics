@@ -106,8 +106,8 @@ def collect(team_name, dryrun=False):
 if __name__ == '__main__':
     PARSER = argparse.ArgumentParser()
     PARSER.add_argument('--dryrun', action='store_true')
-    PARSER.add_argument('--teams', action='append',
-                        help='teams to use', required=True)
+    PARSER.add_argument('--teams', nargs='+',
+                        help='Team(s) to use', required=True)
     ARGS = PARSER.parse_args()
     for team in ARGS.teams:
         collect(team, ARGS.dryrun)
