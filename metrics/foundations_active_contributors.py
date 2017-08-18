@@ -154,7 +154,7 @@ def collect(dryrun=False):
               None,
               registry=registry).set(uploaders)
 
-        util.push2gateway('triage', registry)
+        util.push2gateway('foundations-active-contributors', registry)
 
 
 if __name__ == '__main__':
