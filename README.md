@@ -2,12 +2,72 @@
 
 [![Build Status](https://travis-ci.org/canonical-server/metrics.svg?branch=master)](https://travis-ci.org/canonical-server/metrics)
 
-
 Scripts used to generate metrics for the Server and Foundations Teams.
 
-## Setting Up a Local Environment for Testing
+## How to Run
+Scripts should be run as follows:
 
-To test your metrics which will push data into a prometheus gateway you should setup a local prometheus pushgateway and prometheus server. Both of these are available as juju charms.
+```
+python3 -m metrics.merges
+python3 -m metrics.package cloud-init
+```
+
+## Development
+All new developments are expected to meet the following conditions:
+
+  * Run under Python 3, unless library requirements force Python 2 usage
+  * Follow the structure and functionality of other existing metrics
+    * This means the usage of argparse
+    * Including a --dryrun option to test the metric without pushing data
+    * In `if __name__ == '__main__':` function:
+      * Handels arguments of argparse
+      * Calls `collect` function with arguments
+    * A `collect` function
+      * Calls other functions to handle collecting data
+      * Prints out results
+      * Pushes data to gateway
+  * Utilize a unique metric job name when pushing to Prometheus
+      * Names should be prefaced with team name when applicable (e.g. 'server_metric')
+  * Usage of noqa and pylint-ignore should be justified and limited to as few places as possible
+  * Create the required merge request for the [jenkins-job](https://github.com/canonical-server/jenkins-jobs) project to collect the metrics
+  * Manual verification of the results by the developer is expected. The merge reviewers will do a best effort if the data is easily accessible. 
+
+## Testing
+Testing can come in two forms: first, via tox that is used to lint the code and second, via local testing via juju. Both are detailed below.
+
+### tox
+[tox](https://tox.readthedocs.io/en/latest/) is a Python virtualenv tool used to ease Python testing. The configuration of tox occurs in the tox.ini file in the root of the project directory.
+
+Running tox is as simple as installing tox (`apt install tox`) and invoking it. Here are some common use-cases:
+
+```
+# Run default tox configs
+$ tox
+# Get a list of all test enviornments
+$ tox -l
+# Run single environment
+$ tox -e pylint
+# Clear tox cache and run
+$ tox -r
+```
+
+If adding new requirements to requirements.txt it is generally a good idea to clear the cache and rerun. We avoid doing this on every run only to save time.
+
+The metric's tox.ini file dictates that by default these three tests should always run:
+
+#### pycodestyle
+`pycodestyle`, formerly known as `pep8`, is a tool to check your Python code against some of the style conventions in [PEP 8](https://www.python.org/dev/peps/pep-0008/). This check exists to make sure the code looks consistent and meets the generally accepted conventions.
+
+#### pydocstyle
+`pydocstyle` is a static analysis tool  for checking compliance with Python docstring conventions mainly [PEP 257](https://www.python.org/dev/peps/pep-0257/). This ensures that documentation of the metrics follows a consistent look and feel while meeting generally accepted conventions.
+
+#### pylint
+The most complex and difficult of the lint tests, `pylint` is a Python source code analyzer which looks for programming errors, helps to enforce a coding standard, completes complexity checking, and sniffs for some code smells.
+
+There does exist a `.pylintrc` file to help configure pylint. Certain errors are marked as ignored here due to their either incorrect showing or common error we wish to ignore. Similarly modules that pylint has a hard time recognizing or are dynamically created during usage are marked as ignored. Ignoring errors and modules should be used only as a last resort and justified as such.
+
+### Setting Up a Local Environment for Testing
+To test your metrics which will push data into a Prometheus gateway you should setup a local Prometheus pushgateway and Prometheus server. Both of these are available as juju charms.
 
 ```
 juju deploy cs:prometheus-pushgateway
@@ -21,19 +81,9 @@ To be able to run metrics you'll need to install python3-prometheus-client. With
 METRICS_PROMETHEUS=$(juju status --format json | jq -r '.applications["prometheus-pushgateway"].units[]["public-address"]'):9091 python3 -m metrics.foundations_proposed_migration
 ```
 
-You can then check on the metric by using the prometheus server, http://$PROMETHEUS_IP:9090, and inputing the metric name in the input text box e.g. foundations_proposed_migration.
+You can then check on the metric by using the Prometheus server, http://$PROMETHEUS_IP:9090, and inputing the metric name in the input text box e.g. foundations_proposed_migration.
 
-## How to Run
-
-Scripts should be run as follows:
-
-```
-python3 -m metrics.merges
-python3 -m metrics.package cloud-init
-```
-
-## How to Remove Metrics
-
+## Remove Metrics from Prometheus and pushgateway
 If a metric is no longer useful or required there are two steps that need
 to occur to remove it from Prometheus:
 
@@ -78,5 +128,4 @@ be returned:
 {"status":"success","data":{"numDeleted":1}}
 ```
 
-If however, an attempt is made to delete a non-existant metric the numDeleted
-value will be 0.
+If however, an attempt is made to delete a non-existent metric the numDeleted value will be 0.
