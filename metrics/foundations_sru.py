@@ -119,6 +119,66 @@ def sru_verified_and_ready_count():
     return ready_srus
 
 
+def count_packages(per_series, release, table):
+    """Categorize and determine age of packages in -proposed."""
+    unverified_backlog_count = 0
+    unverified_backlog_age = 0
+    verified_backlog_count = 0
+    verified_backlog_age = 0
+    vfailed_backlog_count = 0
+    vfailed_backlog_age = 0
+    tdata = parse_table_rows(table)
+    for pkg in tdata:
+        failure = tdata[pkg]['failure']
+        age_in_days = tdata[pkg]['age_in_days']
+        # give the SRU 14 days to be verified
+        if age_in_days <= 14:
+            continue
+        category = 'unknown'
+        # there is a failure so consider it unverified
+        if ('Failed' in failure or
+                'Dependency wait' in failure or
+                'Cancelled' in failure or
+                'Regression in autopkgtest' in failure):
+            category = 'unverified'
+        for bug in tdata[pkg]['bugs']:
+            # vfailed will overwrite the unverified status of an SRU
+            if 'verificationfailed' in bug['class']:
+                category = 'vfailed'
+                break
+            if 'verified' not in bug['class']:
+                category = 'unverified'
+                break
+            if 'verified' in bug['class']:
+                # if it is unverified for any reason then it can't be
+                # verified i.e. every bug needs verification
+                if category != 'unverified':
+                    category = 'verified'
+        if category == 'unverified':
+            unverified_backlog_count += 1
+            unverified_backlog_age += age_in_days - 14
+            # print('%s old and unverified' % cols[0].find('a').text)
+        elif category == 'verified':
+            verified_backlog_count += 1
+            verified_backlog_age += age_in_days - 14
+        elif category == 'vfailed':
+            vfailed_backlog_count += 1
+            vfailed_backlog_age += age_in_days - 14
+
+    per_series[release]['fourteen_day_unverified_backlog_count'] = \
+        unverified_backlog_count
+    per_series[release]['fourteen_day_unverified_backlog_age'] = \
+        unverified_backlog_age
+    per_series[release]['fourteen_day_verified_backlog_count'] = \
+        verified_backlog_count
+    per_series[release]['fourteen_day_verified_backlog_age'] = \
+        verified_backlog_age
+    per_series[release]['fourteen_day_vfailed_backlog_count'] = \
+        vfailed_backlog_count
+    per_series[release]['fourteen_day_vfailed_backlog_age'] = \
+        vfailed_backlog_age
+
+
 def parse_table_rows(bs4_table):
     """Parse tables from the pending-sru report."""
     # return a dict of the used table rows
@@ -144,9 +204,7 @@ def parse_table_rows(bs4_table):
 
 
 def proposed_package_ages():
-    """Categorize and determine age of packages in -proposed."""
-    # Most of this code is taken from lp:~brian-murray/+junk/bug-agent, just
-    # modified to do what we want.
+    """Return per series type and age of packages in -proposed."""
     url = 'http://people.canonical.com/~ubuntu-archive/pending-sru.html'
     report_contents = urllib.request.urlopen(url).read()
     try:
@@ -166,67 +224,12 @@ def proposed_package_ages():
             continue
 
         per_series[release] = {}
-        unverified_backlog_count = 0
-        unverified_backlog_age = 0
-        verified_backlog_count = 0
-        verified_backlog_age = 0
-        vfailed_backlog_count = 0
-        vfailed_backlog_age = 0
-        tdata = parse_table_rows(table)
-        for pkg in tdata:
-            failure = tdata[pkg]['failure']
-            age_in_days = tdata[pkg]['age_in_days']
-            # give the SRU 14 days to be verified
-            if age_in_days <= 14:
-                continue
-            category = 'unknown'
-            # there is a failure so consider it unverified
-            if ('Failed' in failure or
-                    'Dependency wait' in failure or
-                    'Cancelled' in failure or
-                    'Regression in autopkgtest' in failure):
-                category = 'unverified'
-            for bug in tdata[pkg]['bugs']:
-                # vfailed will overwrite the unverified status of an SRU
-                if 'verificationfailed' in bug['class']:
-                    category = 'vfailed'
-                    break
-                if 'verified' not in bug['class']:
-                    category = 'unverified'
-                    break
-                if 'verified' in bug['class']:
-                    # if it is unverified for any reason then it can't be
-                    # verified i.e. every bug needs verification
-                    if category != 'unverified':
-                        category = 'verified'
-            if category == 'unverified':
-                unverified_backlog_count += 1
-                unverified_backlog_age += age_in_days - 14
-                # print('%s old and unverified' % cols[0].find('a').text)
-            elif category == 'verified':
-                verified_backlog_count += 1
-                verified_backlog_age += age_in_days - 14
-            elif category == 'vfailed':
-                vfailed_backlog_count += 1
-                vfailed_backlog_age += age_in_days - 14
-
-        per_series[release]['fourteen_day_unverified_backlog_count'] = \
-            unverified_backlog_count
-        per_series[release]['fourteen_day_unverified_backlog_age'] = \
-            unverified_backlog_age
-        per_series[release]['fourteen_day_verified_backlog_count'] = \
-            verified_backlog_count
-        per_series[release]['fourteen_day_verified_backlog_age'] = \
-            verified_backlog_age
-        per_series[release]['fourteen_day_vfailed_backlog_count'] = \
-            vfailed_backlog_count
-        per_series[release]['fourteen_day_vfailed_backlog_age'] = \
-            vfailed_backlog_age
+        count_packages(per_series, release, table)
 
     return per_series
 
 
-def collect(dryrun=False):
+def collect(dryrun=False):  # pylint: disable=too-many-branches
     """Collect and push SRU-related metrics."""
     sru_queues = sru_queue_count()
     ready_srus = sru_verified_and_ready_count()
