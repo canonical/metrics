@@ -82,8 +82,7 @@ def collect(team_name, dryrun=False):
     mcp_data = team_subscribed_mcp_count(team_name)
 
     for series in mcp_data:
-        print("Sum of yesterday's %s top ten crashes for %s: %s" %
-              (team_name, series, mcp_data[series]['sum_top_ten_counts']))
+        print("%s: %s" % (series, mcp_data[series]['sum_top_ten_counts']))
 
     if not dryrun:
         # metric names can not have a hyphen in them
@@ -100,7 +99,7 @@ def collect(team_name, dryrun=False):
             gauge.labels(series).set(
                 mcp_data[series]['sum_top_ten_counts'])
 
-        util.push2gateway('team_mcp_errors', registry)
+        util.push2gateway('%s_mcp_errors' % team_name, registry)
 
 
 if __name__ == '__main__':
@@ -109,5 +108,9 @@ if __name__ == '__main__':
     PARSER.add_argument('--teams', nargs='+',
                         help='Team(s) to use', required=True)
     ARGS = PARSER.parse_args()
+
+    print("Sum of yesterday's top ten crashes for:")
     for team in ARGS.teams:
+        print("\n%s" % team)
+        print("-"*(len(team)))
         collect(team, ARGS.dryrun)
