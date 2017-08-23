@@ -77,7 +77,7 @@ def collect(team_name, dryrun=False):
         lp.LP.people[team_name]
     except KeyError:
         print('Team %s does not exist in LP.' % team_name)
-        sys.exit(1)
+        return
 
     mcp_data = team_subscribed_mcp_count(team_name)
 
