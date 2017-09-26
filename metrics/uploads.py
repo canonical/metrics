@@ -28,9 +28,7 @@ def generate_upload_report(date, team_name):
 
     packages = util.get_team_packages(util.get_launchpad_team_name(team_name))
     ubuntu = lp.get_ubuntu()
-    devels = ubuntu.getDevelopmentSeries()
-    assert len(devels) == 1
-    devel = devels[0].name
+    devel = ubuntu.current_series_link.split('/')[-1]
     archive = ubuntu.main_archive
 
     for package in packages:
