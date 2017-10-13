@@ -96,6 +96,7 @@ def get_launchpad_team_name(team):
         'foundations': 'foundations-bugs',
         'server': 'ubuntu-server',
         'security': 'ubuntu-security',
+        'openstack': 'ubuntu-openstack',
     }
     return mapping[team]
 
