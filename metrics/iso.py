@@ -46,7 +46,11 @@ def get_iso_size_data(release, lts=False):
 
 def collect(dryrun=False):
     """Submit data to Push Gateway."""
-    devel = distro_info.UbuntuDistroInfo().devel()
+    try:
+        devel = distro_info.UbuntuDistroInfo().devel()
+    except distro_info.DistroDataOutdated:
+        devel = distro_info.UbuntuDistroInfo().stable()
+
     devel_results = get_iso_size_data(devel)
     print('%s: %s' % (devel, devel_results))
 
