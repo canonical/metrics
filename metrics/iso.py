@@ -20,18 +20,25 @@ def get_iso_size_data(release, lts=False):
     """Get ISO size stats for a release."""
     results = {'amd64': 0, 'arm64': 0, 'i386': 0, 'ppc64el': 0, 's390x': 0}
 
-    url = BASE_URL + '/daily/current/'
+    url = '%s/daily/current/' % (BASE_URL)
     if lts:
-        url = BASE_URL + release + '/daily/current/'
+        url = '%s/%s/daily/current/' % (BASE_URL, release)
 
-    print(url)
-    response = urllib.request.urlopen(url)
-    text = response.read().decode('utf-8')
+    try:
+        print(url)
+        response = urllib.request.urlopen(url)
+        text = response.read().decode('utf-8')
+    except urllib.error.HTTPError:
+        return results
 
     for arch in results:
         # search for the specific line for this ISO
         regex = r'<tr>.*>%s-server-%s.iso<.*</tr>' % (release, arch)
-        match = re.search(regex, text).group(0)
+
+        try:
+            match = re.search(regex, text).group(0)
+        except AttributeError:
+            continue
         # search for the size in MB or GB
         regex = r'[0-9]*\.*[0-9]+(M|G)'
         size = re.search(regex, match).group(0)
