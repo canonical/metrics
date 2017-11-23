@@ -24,6 +24,7 @@ DAILY_URL_PATTERN = ('http://cloud-images.ubuntu.com/daily/streams/v1'
                      '/com.ubuntu.cloud:daily:{cloud_name}.json')
 RELEASE_URL_PATTERN = ('http://cloud-images.ubuntu.com/releases/streams/v1'
                        '/com.ubuntu.cloud:released:{cloud_name}.json')
+TODAY = datetime.date.today()
 URL_PATTERNS = {'daily': DAILY_URL_PATTERN, 'release': RELEASE_URL_PATTERN}
 
 
@@ -82,8 +83,7 @@ def collect(dryrun=False):
                     image_type, cloud_name, release).set(serial)
                 serial_datetime = datetime.datetime.strptime(str(serial),
                                                              '%Y%m%d')
-                serial_age = (datetime.date.today()
-                              - serial_datetime.date()).days
+                serial_age = (TODAY - serial_datetime.date()).days
                 latest_serial_age_gauge.labels(
                     image_type, cloud_name, release).set(serial_age)
 
