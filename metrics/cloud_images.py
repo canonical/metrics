@@ -28,6 +28,13 @@ TODAY = datetime.date.today()
 URL_PATTERNS = {'daily': DAILY_URL_PATTERN, 'release': RELEASE_URL_PATTERN}
 
 
+def _parse_serial_date_int_from_string(serial_str):
+    match = re.match(r'\d+', serial_str)
+    if match is None:
+        raise Exception('No serial found in {}'.format(serial_str))
+    return int(match.group(0))
+
+
 def parse_simplestreams_for_images(cloud_name, image_type):
     """Use sstream-query to fetch supported image information."""
     url = URL_PATTERNS[image_type].format(cloud_name=cloud_name)
@@ -40,10 +47,7 @@ def parse_simplestreams_for_images(cloud_name, image_type):
         serial = product_dict['version_name']
         if 'beta' in serial or 'LATEST' in serial:
             continue
-        match = re.match(r'\d+', serial)
-        if match is None:
-            raise Exception('No serial found in {}'.format(serial))
-        serial = int(match.group(0))
+        serial = _parse_serial_date_int_from_string(serial)
         if serial > latest_serials[release]:
             latest_serials[release] = serial
     return image_counts, latest_serials
