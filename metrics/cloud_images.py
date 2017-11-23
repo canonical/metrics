@@ -53,6 +53,11 @@ def parse_simplestreams_for_images(cloud_name, image_type):
     return image_counts, latest_serials
 
 
+def _determine_serial_age(serial):
+    serial_datetime = datetime.datetime.strptime(str(serial), '%Y%m%d')
+    return (TODAY - serial_datetime.date()).days
+
+
 def collect(dryrun=False):
     """Push published cloud image counts."""
     registry = CollectorRegistry()
@@ -85,11 +90,9 @@ def collect(dryrun=False):
                 serial = latest_serials[release]
                 latest_serial_gauge.labels(
                     image_type, cloud_name, release).set(serial)
-                serial_datetime = datetime.datetime.strptime(str(serial),
-                                                             '%Y%m%d')
-                serial_age = (TODAY - serial_datetime.date()).days
                 latest_serial_age_gauge.labels(
-                    image_type, cloud_name, release).set(serial_age)
+                    image_type, cloud_name, release).set(
+                        _determine_serial_age(serial))
 
     if not dryrun:
         print('Pushing data...')
