@@ -20,7 +20,7 @@ All new developments are expected to meet the following conditions:
     * This means the usage of argparse
     * Including a --dryrun option to test the metric without pushing data
     * In `if __name__ == '__main__':` function:
-      * Handels arguments of argparse
+      * Handles arguments of argparse
       * Calls `collect` function with arguments
     * A `collect` function
       * Calls other functions to handle collecting data
