@@ -41,7 +41,8 @@ def collect(queue_name, dryrun=False):
                       None,
                       registry=registry).set(count)
 
-        util.push2gateway('foundations-autopkgtest', registry)
+        util.push2gateway('foundations-autopkgtest-%s' %
+                          queue_name, registry)
 
 
 if __name__ == '__main__':
