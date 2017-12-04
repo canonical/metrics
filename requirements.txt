@@ -1,8 +1,10 @@
-    bs4
-    httplib2
-    gitpython
-    google-api-python-client
-    prometheus_client
-    psycopg2
-    requests
-    simplejson
+bs4
+gitpython
+google-api-python-client
+httplib2
+influxdb
+prometheus_client
+psycopg2
+requests
+simplejson
+
