@@ -60,7 +60,7 @@ def print_multi_result(results, label):
         print_result(date, ','.join(values.values()))
 
 
-def query(url, params):
+def query_prometheus(url, params):
     """
     Query Prometheus for data.
 
@@ -97,14 +97,20 @@ def runner(metric, label, days, step):
     start_date = end_date - timedelta(days=int(days))
 
     url = '%s/api/v1/query_range' % server_address
+
+    if label:
+        query = metric
+    else:
+        query = 'avg(%s)' % metric
+
     params = {
-        'query': metric,
+        'query': query,
         'start': start_date.strftime('%Y-%m-%dT%H:00:00Z'),
         'end': end_date.strftime('%Y-%m-%dT%H:00:00Z'),
         'step': step,
     }
 
-    results = query(url, params)
+    results = query_prometheus(url, params)
 
     if len(results) == 1:
         print_simple(results, metric)
