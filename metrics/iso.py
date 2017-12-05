@@ -9,7 +9,6 @@ import re
 import urllib.request
 
 import distro_info
-from prometheus_client import CollectorRegistry, Gauge
 
 from metrics.helpers import util
 
@@ -67,59 +66,18 @@ def collect(dryrun=False):
 
     if not dryrun:
         print('Pushing data...')
-        registry = CollectorRegistry()
+        data = [
+            {
+                'measurement': 'iso_size_devel',
+                'fields': devel_results,
+            },
+            {
+                'measurement': 'iso_size_lts',
+                'fields': lts_results,
+            }
+        ]
 
-        Gauge('server_iso_devel_amd64_size_total',
-              'dev amd64 size',
-              None,
-              registry=registry).set(devel_results['amd64'])
-
-        Gauge('server_iso_devel_arm64_size_total',
-              'dev arm64 size',
-              None,
-              registry=registry).set(devel_results['arm64'])
-
-        Gauge('server_iso_devel_i386_size_total',
-              'dev i386 size',
-              None,
-              registry=registry).set(devel_results['i386'])
-
-        Gauge('server_iso_devel_ppc64el_size_total',
-              'dev ppc64el size',
-              None,
-              registry=registry).set(devel_results['ppc64el'])
-
-        Gauge('server_iso_devel_s390x_size_total',
-              'dev s390x size',
-              None,
-              registry=registry).set(devel_results['s390x'])
-
-        Gauge('server_iso_lts_amd64_size_total',
-              'lts amd64 size',
-              None,
-              registry=registry).set(lts_results['amd64'])
-
-        Gauge('server_iso_lts_arm64_size_total',
-              'lts arm64 size',
-              None,
-              registry=registry).set(lts_results['arm64'])
-
-        Gauge('server_iso_lts_i386_size_total',
-              'lts i386 size',
-              None,
-              registry=registry).set(lts_results['i386'])
-
-        Gauge('server_iso_lts_ppc64el_size_total',
-              'lts ppc64el size',
-              None,
-              registry=registry).set(lts_results['ppc64el'])
-
-        Gauge('server_iso_lts_s390x_size_total',
-              'lts s390x size',
-              None,
-              registry=registry).set(lts_results['s390x'])
-
-        util.push2gateway('server-iso', registry)
+        util.influxdb_insert(data)
 
 
 if __name__ == '__main__':

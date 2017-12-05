@@ -19,6 +19,7 @@ except ImportError:
     from urllib2 import URLError
     from urllib2 import urlopen
 
+from influxdb import InfluxDBClient
 from prometheus_client import push_to_gateway
 
 INSTANCE = 'ubuntu-server'
@@ -99,6 +100,32 @@ def get_launchpad_team_name(team):
         'openstack': 'ubuntu-openstack',
     }
     return mapping[team]
+
+
+def influxdb_connect():
+    """Connect to an InfluxDB instance."""
+    try:
+        hostname = os.environ['INFLUXDB_HOSTNAME']
+        port = os.environ['INFLUXDB_PORT']
+        username = os.environ['INFLUXDB_USERNAME']
+        password = os.environ['INFLUXDB_PASSWORD']
+        database = os.environ['INFLUXDB_DATABASE']
+    except KeyError:
+        print('error: please source influx credentials before running')
+        sys.exit(1)
+
+    return InfluxDBClient(hostname, port, username, password, database)
+
+
+def influxdb_insert(data):
+    """Write given data to InfluxDB.
+
+    @param data: array of dictionaries of data
+    """
+    client = influxdb_connect()
+
+    if data:
+        client.write_points(data)
 
 
 def run(cmd):
