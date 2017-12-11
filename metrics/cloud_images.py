@@ -30,6 +30,11 @@ RELEASE_URL_PATTERN = ('http://cloud-images.ubuntu.com/releases/streams/v1'
 TODAY = datetime.date.today()
 URL_PATTERNS = {'daily': DAILY_URL_PATTERN, 'release': RELEASE_URL_PATTERN}
 DOCKER_CORE_ROOT = 'https://partner-images.canonical.com/core'
+AWS_VIRT_STORE_SKIPS = {
+    # These virt/storage combinations were present in early xenial development
+    # dailies, but were dropped before release.
+    'xenial': ['hvm-ebs', 'hvm-io1', 'pv-ebs', 'pv-io1'],
+}
 
 
 def _parse_serial_date_int_from_string(serial_str):
@@ -120,6 +125,11 @@ def do_aws_specific_collection(cloud_name, image_type, latest_serial_gauge,
         cloud_name, image_type)
     latest_serials = {}
     for release in aws_latest_serials:
+        # Some virt/storage combinations should be ignored, so we filter those
+        # out before we do anything else
+        aws_latest_serials[release] = {
+            k: v for k, v in aws_latest_serials[release].items()
+            if k not in AWS_VIRT_STORE_SKIPS.get(release, [])}
         # aws_latest_serials contains an entry for each virt/storage combo; we
         # want to use the oldest as the main cloud entry
         latest_serials[release] = min(aws_latest_serials[release].values())
