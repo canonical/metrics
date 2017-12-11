@@ -69,11 +69,22 @@ def get_current_download_serials(download_root):
 
 
 def parse_simplestreams_for_images(cloud_name, image_type):
-    """Use sstream-query to fetch supported image information."""
+    """
+    Use sstream-query to fetch supported image information.
+
+    For non-AWS clouds, this returns a tuple of
+    ({release: {arch: count_of_images}}, {release: latest_serial}).  For
+    AWS clouds, the first element of the tuple remains the same, but the
+    second is {release: {virt_storage: {latest_serial}}}.
+    """
     url = URL_PATTERNS[image_type].format(cloud_name=cloud_name)
     output = subprocess.check_output(['sstream-query', '--json', url])
     image_counts = defaultdict(lambda: defaultdict(int))
-    latest_serials = defaultdict(int)
+    if cloud_name.startswith('aws'):
+        # For AWS, we capture latest serial by virt/root store
+        latest_serials = defaultdict(lambda: defaultdict(int))
+    else:
+        latest_serials = defaultdict(int)
     for product_dict in json.loads(output.decode('utf-8')):
         release = product_dict['release']
         image_counts[release][product_dict['arch']] += 1
@@ -81,14 +92,46 @@ def parse_simplestreams_for_images(cloud_name, image_type):
         if 'beta' in serial or 'LATEST' in serial:
             continue
         serial = _parse_serial_date_int_from_string(serial)
-        if serial > latest_serials[release]:
-            latest_serials[release] = serial
+        if cloud_name.startswith('aws'):
+            virt_storage = '-'.join(
+                [product_dict['virt'], product_dict['root_store']])
+            if serial > latest_serials[release][virt_storage]:
+                latest_serials[release][virt_storage] = serial
+        else:
+            if serial > latest_serials[release]:
+                latest_serials[release] = serial
     return image_counts, latest_serials
 
 
 def _determine_serial_age(serial):
     serial_datetime = datetime.datetime.strptime(str(serial), '%Y%m%d')
     return (TODAY - serial_datetime.date()).days
+
+
+def do_aws_specific_collection(cloud_name, image_type, latest_serial_gauge,
+                               latest_serial_age_gauge):
+    """
+    Report AWS-specific metrics and return generic cloud data.
+
+    This returns the non-AWS-specific version of
+    parse_simplestreams_for_images' return tuples.
+    """
+    image_counts, aws_latest_serials = parse_simplestreams_for_images(
+        cloud_name, image_type)
+    latest_serials = {}
+    for release in aws_latest_serials:
+        # aws_latest_serials contains an entry for each virt/storage combo; we
+        # want to use the oldest as the main cloud entry
+        latest_serials[release] = min(aws_latest_serials[release].values())
+        for virt_store in aws_latest_serials[release]:
+            aws_cloud_name = '{}:{}'.format(cloud_name, virt_store)
+            serial = aws_latest_serials[release][virt_store]
+            latest_serial_gauge.labels(
+                image_type, aws_cloud_name, release).set(serial)
+            latest_serial_age_gauge.labels(
+                image_type, aws_cloud_name, release).set(
+                    _determine_serial_age(serial))
+    return image_counts, latest_serials
 
 
 def collect(dryrun=False):
@@ -110,8 +153,13 @@ def collect(dryrun=False):
         for cloud_name in CLOUD_NAMES[image_type]:
             print('Counting {} images for {}...'.format(image_type,
                                                         cloud_name))
-            image_counts, latest_serials = parse_simplestreams_for_images(
-                cloud_name, image_type)
+            if 'aws' in cloud_name:
+                image_counts, latest_serials = do_aws_specific_collection(
+                    cloud_name, image_type, latest_serial_gauge,
+                    latest_serial_age_gauge)
+            else:
+                image_counts, latest_serials = parse_simplestreams_for_images(
+                    cloud_name, image_type)
             for release in image_counts:
                 for arch in image_counts[release]:
                     count = image_counts[release][arch]
