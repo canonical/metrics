@@ -8,8 +8,6 @@ import argparse
 import json
 import subprocess
 
-from prometheus_client import CollectorRegistry, Gauge
-
 from metrics.helpers import util
 
 DAILY_URL = ('http://cloud-images.ubuntu.com/daily/streams/v1'
@@ -49,25 +47,29 @@ def parse_simplestreams_for_images():
 
 
 def collect(dryrun=False):
-    """Push published cloud image sizes."""
-    registry = CollectorRegistry()
-    size_gauge = Gauge('foundations_cloud_images_sizes',
-                       'The size of cloud images',
-                       ['image_type', 'format', 'release', 'arch'],
-                       registry=registry)
+    """Collect published cloud image sizes and push to InfluxDB."""
     print('Getting size of daily images')
     image_sizes = parse_simplestreams_for_images()
+    data = []
     for release in image_sizes:
         for arch in image_sizes[release]:
             size = image_sizes[release][arch]['size']
             print('Found {} image {} of size {} for {} {}'.format(
                 IMAGE_TYPE, IMAGE_FORMAT, size, release, arch))
-            size_gauge.labels(
-                IMAGE_TYPE, IMAGE_FORMAT, release, arch).set(size)
+            data.append({
+                'measurement': 'cloud_images_sizes',
+                'tags': {
+                    'arch': arch,
+                    'release': release,
+                    'type': IMAGE_TYPE,
+                    'format': IMAGE_FORMAT
+                },
+                'fields': {'size': size}
+            })
 
     if not dryrun:
         print('Pushing data...')
-        util.push2gateway('cloud-image-size-foundations', registry)
+        util.influxdb_insert(data)
 
 
 if __name__ == '__main__':
