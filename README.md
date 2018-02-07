@@ -67,21 +67,31 @@ The most complex and difficult of the lint tests, `pylint` is a Python source co
 There does exist a `.pylintrc` file to help configure pylint. Certain errors are marked as ignored here due to their either incorrect showing or common error we wish to ignore. Similarly modules that pylint has a hard time recognizing or are dynamically created during usage are marked as ignored. Ignoring errors and modules should be used only as a last resort and justified as such.
 
 ### Setting Up a Local Environment for Testing
-To test your metrics which will push data into a Prometheus gateway you should setup a local Prometheus pushgateway and Prometheus server. Both of these are available as juju charms.
+To test your metrics you should setup a local Influx DB server. It is available as a juju charm.
 
 ```
-juju deploy cs:prometheus-pushgateway
-juju deploy cs:prometheus
-juju add-relation prometheus:target prometheus-pushgateway
+juju deploy cs:influxdb
 ```
 
-To be able to run metrics you'll need to install python3-prometheus-client. With your local testing environment setup you can now push data into it, start with a known good script like foundations_proposed_migration.
+You'll need to create a database in Influx DB to which the scripts can write data.
 
 ```
-METRICS_PROMETHEUS=$(juju status --format json | jq -r '.applications["prometheus-pushgateway"].units[]["public-address"]'):9091 python3 -m metrics.foundations_proposed_migration
+juju ssh influxdb/0
+influx
+CREATE DATABASE foundations
 ```
 
-You can then check on the metric by using the Prometheus server, http://$PROMETHEUS_IP:9090, and inputing the metric name in the input text box e.g. foundations_proposed_migration.
+To be able to run metrics you'll need to install python3-influxdb. With your local testing environment setup you can now push data into it, start with a known good script like docker_hub_images.
+
+```
+INFLUXDB_HOSTNAME=$(juju status --format json | jq -r '.applications["influxdb"].units[]["public-address"]') INFLUXDB_PORT=8086 INFLUXDB_USERNAME='' INFLUXDB_PASSWORD='' INFLUXDB_DATABASE=foundations python3 -m metrics.docker_hub_images
+```
+
+You can then check on the metric by using influx on the Influx DB server.
+
+```
+SELECT * FROM docker_hub_images WHERE suite = 'bionic'
+```
 
 ## Remove Metrics from Prometheus and pushgateway
 If a metric is no longer useful or required there are two steps that need
