@@ -20,6 +20,7 @@ IMAGE_FORMAT = 'disk1.img'
 def _get_datetime_for_serial(serial: str) -> datetime:
     return datetime.strptime(serial[:8], '%Y%m%d')
 
+
 def parse_simplestreams_for_images():
     """
     Use sstream-query to fetch supported image information.
