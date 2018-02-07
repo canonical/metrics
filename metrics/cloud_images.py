@@ -12,7 +12,7 @@ import re
 import subprocess
 from collections import defaultdict
 
-import distro_info
+import distro_info  # pylint: disable=wrong-import-order
 import requests
 from prometheus_client import CollectorRegistry, Gauge
 

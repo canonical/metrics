@@ -85,7 +85,7 @@ def sru_verified_and_ready_count():
         soup = BeautifulSoup(report_contents, 'lxml')
     except HTMLParseError:
         logging.error('Error parsing SRU report')
-        return
+        raise
 
     ready_srus = {}
     tables = soup.findAll('table')
@@ -211,7 +211,7 @@ def proposed_package_ages():
         soup = BeautifulSoup(report_contents, 'lxml')
     except HTMLParseError:
         logging.error('Error parsing SRU report')
-        return
+        raise
 
     per_series = {}
     tables = soup.findAll('table')

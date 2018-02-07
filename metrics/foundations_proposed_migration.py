@@ -5,8 +5,9 @@ from io import StringIO
 import logging
 import urllib
 
-from metrics.helpers import util
 from prometheus_client import CollectorRegistry, Gauge
+
+from metrics.helpers import util
 
 
 def get_proposed_migration_queue(registry):
