@@ -8,12 +8,17 @@ import argparse
 import json
 import subprocess
 
+from datetime import datetime
 from metrics.helpers import util
 
 DAILY_URL = ('http://cloud-images.ubuntu.com/daily/streams/v1'
              '/com.ubuntu.cloud:daily:download.json')
 IMAGE_TYPE = 'daily'
 IMAGE_FORMAT = 'disk1.img'
+
+
+def _get_datetime_for_serial(serial: str) -> datetime:
+    return datetime.strptime(serial[:8], '%Y%m%d')
 
 
 def parse_simplestreams_for_images():
@@ -54,10 +59,12 @@ def collect(dryrun=False):
     for release in image_sizes:
         for arch in image_sizes[release]:
             size = image_sizes[release][arch]['size']
+            version = image_sizes[release][arch]['version']
             print('Found {} image {} of size {} for {} {}'.format(
                 IMAGE_TYPE, IMAGE_FORMAT, size, release, arch))
             data.append({
                 'measurement': 'cloud_images_sizes',
+                'time': _get_datetime_for_serial(version),
                 'tags': {
                     'arch': arch,
                     'release': release,

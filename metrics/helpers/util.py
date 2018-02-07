@@ -117,7 +117,7 @@ def influxdb_connect():
     return InfluxDBClient(hostname, port, username, password, database)
 
 
-def influxdb_insert(data):
+def influxdb_insert(data, batch_size=None):
     """Write given data to InfluxDB.
 
     @param data: array of dictionaries of data
@@ -125,7 +125,7 @@ def influxdb_insert(data):
     client = influxdb_connect()
 
     if data:
-        client.write_points(data)
+        client.write_points(data, batch_size=batch_size)
 
 
 def run(cmd):
