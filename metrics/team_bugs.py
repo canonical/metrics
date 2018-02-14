@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-"""Submit metrics for number of bugs assigned to canonical-foundations.
+"""Submit metrics for number of bugs assigned to a particular team.
 
 Copyright 2018 Canonical Ltd.
 Łukasz 'sil2100' Zemczak <lukasz.zemczak@canonical.com>
 """
 import argparse
 
-from datetime import datetime
 from metrics.helpers import lp
 from metrics.helpers import util
 
@@ -21,7 +20,6 @@ STATUS_LIST = [
 def collect(team_name, dryrun=False):
     """Collect data and push to InfluxDB."""
     team = lp.LP.people[team_name]
-    now = datetime.now()
 
     counts = {i: dict.fromkeys(STATUS_LIST, 0) for i in IMPORTANCE_LIST}
     tasks = lp.LP.bugs.searchTasks(assignee=team, status=STATUS_LIST)
@@ -34,8 +32,7 @@ def collect(team_name, dryrun=False):
             print('{} importance bugs with {} status: {}'.format(
                 importance, status, count))
             data.append({
-                'measurement': 'foundations_bugs',
-                'time': now,
+                'measurement': '{}_bugs'.format(team_name.replace('-', '_')),
                 'tags': {
                     'importance': importance,
                     'status': status,
@@ -50,8 +47,7 @@ def collect(team_name, dryrun=False):
 
 if __name__ == '__main__':
     PARSER = argparse.ArgumentParser()
-    PARSER.add_argument('--team', help='team name',
-                        default='canonical-foundations')
+    PARSER.add_argument('team_name', help='team name')
     PARSER.add_argument('--dryrun', action='store_true')
     ARGS = PARSER.parse_args()
-    collect(ARGS.team, ARGS.dryrun)
+    collect(ARGS.team_name, ARGS.dryrun)
