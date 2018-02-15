@@ -26,6 +26,7 @@ def collect(team_name, dryrun=False):
     for task in tasks:
         counts[task.importance][task.status] += 1
 
+    # Thing to note: currently private bugs are not counted.
     data = []
     for importance, statuses in counts.items():
         for status, count in statuses.items():
