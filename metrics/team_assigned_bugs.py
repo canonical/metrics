@@ -29,10 +29,11 @@ def collect(team_name, dryrun=False):
     data = []
     for importance, statuses in counts.items():
         for status, count in statuses.items():
-            print('{} importance bugs with {} status: {}'.format(
+            print('{} importance assigned bugs with {} status: {}'.format(
                 importance, status, count))
             data.append({
-                'measurement': '{}_bugs'.format(team_name.replace('-', '_')),
+                'measurement': '{}_assigned_bugs'.format(
+                    team_name.replace('-', '_')),
                 'tags': {
                     'importance': importance,
                     'status': status,
