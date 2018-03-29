@@ -7,4 +7,3 @@ prometheus_client
 psycopg2
 requests
 simplejson
-
