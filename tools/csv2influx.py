@@ -2,6 +2,7 @@
 """Load CSV file data and push to InfluxDB."""
 import argparse
 import csv
+import sys
 
 from metrics.helpers import util
 
@@ -18,9 +19,17 @@ def csv2influx(csv_filename, measurement):
         reader = csv.DictReader(csv_file)
         for row in reader:
             date = row.pop('date')
+
+            try:
+                fields = {k:int(v) if v else 0 for k, v in dict(row).items()}
+            except TypeError:
+                print('Unknown value (not an int) on this row:')
+                print(row)
+                sys.exit(1)
+
             entry = {
                 "measurement": measurement,
-                "fields": {k:int(v) for k, v in dict(row).items()},
+                "fields": fields,
                 "time": date
             }
             data.append(entry)
