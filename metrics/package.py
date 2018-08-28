@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Submit metrics for the specififed project.
+"""Submit metrics for the specified project.
 
-Copyright 2017 Canonical Ltd.
+Copyright 2017-2018 Canonical Ltd.
 Joshua Powers <josh.powers@canonical.com>
 """
 import argparse
@@ -35,52 +35,25 @@ def collect(pkg, repo='', dryrun=False):
 
     if not dryrun:
         print('Pushing data...')
-        # Prometheus does not like '-' in names (e.g. cloud-init)
         pkg_str = pkg.replace('-', '') if '-' in pkg else pkg
 
-        registry = CollectorRegistry()
+        data = [
+            {
+                'measurement': 'pkg_%s' % pkg_str,
+                'fields': {
+                    'bug_total': project_total - project_new,
+                    'bug_new': project_new,
+                    'bug_ubuntu_total': ubuntu_total - ubuntu_new,
+                    'bug_ubuntu_new': ubuntu_new,
+                    'review_total': reviews,
+                    'contrib_total': len(contrib),
+                    'contrib_external_total': len(contrib_external),
+                    'contrib_internal_total': len(contrib_internal),
+                }
+            }
+        ]
 
-        Gauge('server_%s_bug_total' % pkg_str,
-              'Bugs in project',
-              None,
-              registry=registry).set(project_total - project_new)
-
-        Gauge('server_%s_bug_new_total' % pkg_str,
-              'Bugs in project, marked new',
-              None,
-              registry=registry).set(project_new)
-
-        Gauge('server_%s_bug_ubuntu_total' % pkg_str,
-              'Bugs in Ubuntu pkg',
-              None,
-              registry=registry).set(ubuntu_total - ubuntu_new)
-
-        Gauge('server_%s_bug_ubuntu_new_total' % pkg_str,
-              'Bugs in Ubuntu pkg, marked new',
-              None,
-              registry=registry).set(ubuntu_new)
-
-        Gauge('server_%s_review_total' % pkg_str,
-              'Active reviews',
-              None,
-              registry=registry).set(reviews)
-
-        Gauge('server_%s_contrib_total' % pkg_str,
-              'Contributors',
-              None,
-              registry=registry).set(len(contrib))
-
-        Gauge('server_%s_contrib_external_total' % pkg_str,
-              'External Contributors',
-              None,
-              registry=registry).set(len(contrib_external))
-
-        Gauge('server_%s_contrib_internal_total' % pkg_str,
-              'Internal Contributors',
-              None,
-              registry=registry).set(len(contrib_internal))
-
-        util.push2gateway(pkg_str, registry)
+        util.influxdb_insert(data)
 
 
 if __name__ == '__main__':
