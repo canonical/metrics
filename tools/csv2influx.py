@@ -20,7 +20,7 @@ def csv2influx(csv_filename, measurement):
             date = row.pop('date')
             entry = {
                 "measurement": measurement,
-                "fields": dict(row),
+                "fields": {k:int(v) for k, v in dict(row).items()},
                 "time": date
             }
             data.append(entry)
