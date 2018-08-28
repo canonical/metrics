@@ -36,19 +36,18 @@ def collect(team_name, dryrun=False):
 
     if not dryrun:
         print('Pushing data...')
-        registry = CollectorRegistry()
 
-        Gauge('{}_triage_backlog_total'.format(team_name),
-              'Bugs in team backlog',
-              None,
-              registry=registry).set(backlog)
+        data = [
+            {
+                'measurement': 'metric_triage',
+                'fields': {
+                    'backlog': backlog,
+                    'triage': triage,
+                }
+            }
+        ]
 
-        Gauge('{}_triage_daily_triage_total'.format(team_name),
-              'Bugs to review daily',
-              None,
-              registry=registry).set(triage)
-
-        util.push2gateway('%s-triage' % team_name, registry)
+        util.influxdb_insert(data)
 
 
 if __name__ == '__main__':
