@@ -52,7 +52,7 @@ def collect(team_name, dryrun=False):
         main = results_by_component['main']
         data = [
             {
-                'measurement': 'metric_merge_%s' % team_name,
+                'measurement': 'metric_merges_%s' % team_name,
                 'fields': {
                     'excluded': main['excluded'],
                     'local': main['local'],
