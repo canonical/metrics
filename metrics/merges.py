@@ -48,17 +48,24 @@ def collect(team_name, dryrun=False):
 
     if not dryrun:
         print('Pushing data...')
-        registry = CollectorRegistry()
-        gauge = Gauge(
-            '{}_mom'.format(team_name), '', ['component', 'status'],
-            registry=registry)
-        for component in results_by_component:
-            for status in results_by_component[component]:
-                labels = gauge.labels(component,  # pylint: disable=no-member
-                                      status)
-                labels.set(results_by_component[component][status])
 
-        util.push2gateway('%s-merge' % team_name, registry)
+        main = results_by_component['main']
+        data = [
+            {
+                'measurement': 'metric_merge_%s' % team_name,
+                'fields': {
+                    'excluded': main['excluded'],
+                    'local': main['local'],
+                    'modified': main['modified'],
+                    'needs-merge': main['needs-merge'],
+                    'needs-sync': main['needs-sync'],
+                    'repackaged': main['repackaged'],
+                    'unmodified': main['unmodified'],
+                }
+            }
+        ]
+
+        util.influxdb_insert(data)
 
 
 if __name__ == '__main__':
