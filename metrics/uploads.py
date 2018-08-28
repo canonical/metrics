@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate daily upload report.
 
-Copyright 2017 Canonical Ltd.
+Copyright 2017-2018 Canonical Ltd.
 Robbie Basak <robie.basak@canonical.com>
 Joshua Powers <josh.powers@canonical.com>
 """
@@ -71,19 +71,18 @@ def collect(team_name, dryrun=False):
 
     if not dryrun:
         print('Pushing data...')
-        registry = CollectorRegistry()
 
-        Gauge('{}_uploads_daily_dev_total'.format(team_name),
-              'Uploads to dev release',
-              None,
-              registry=registry).set(results['dev'])
+        data = [
+            {
+                'measurement': 'metric-uploads-%s' % team_name,
+                'fields': {
+                    'dev': results['dev'],
+                    'sru': results['sru'],
+                }
+            }
+        ]
 
-        Gauge('{}_uploads_daily_sru_total'.format(team_name),
-              'Uploads to supported release (SRU)',
-              None,
-              registry=registry).set(results['sru'])
-
-        util.push2gateway('%s-upload' % team_name, registry)
+        util.influxdb_insert(data)
 
 
 if __name__ == '__main__':
