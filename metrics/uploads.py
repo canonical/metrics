@@ -74,7 +74,7 @@ def collect(team_name, dryrun=False):
 
         data = [
             {
-                'measurement': 'metric-uploads-%s' % team_name,
+                'measurement': 'metric_uploads_%s' % team_name,
                 'fields': {
                     'dev': results['dev'],
                     'sru': results['sru'],
