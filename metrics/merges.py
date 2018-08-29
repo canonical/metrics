@@ -65,6 +65,7 @@ def collect(team_name, dryrun=False):
             }
         ]
 
+        print(data)
         util.influxdb_insert(data)
 
 
