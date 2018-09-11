@@ -5,6 +5,12 @@
 Scripts used to generate metrics for the Server and Foundations Teams.
 
 ## How to Run
+
+### Dependencies
+* requirements.txt
+* sudo apt install simplestreams
+
+### Invocation
 Scripts should be run as follows:
 
 ```
