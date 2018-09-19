@@ -6,35 +6,32 @@ Daniel Watkins <daniel.watkins@canonical.com>
 """
 import argparse
 import datetime
-import json
+import logging
+import sys
 import os.path
 import re
-import subprocess
 from collections import defaultdict
 
 import distro_info  # pylint: disable=wrong-import-order
 import requests
 from prometheus_client import CollectorRegistry, Gauge
-
-from metrics.helpers import util
+from metrics.helpers.sstreams import UbuntuCloudImages, ifilter
 
 
 DAILY_CLOUD_NAMES = ['azure', 'aws', 'download', 'gce']
 RELEASE_CLOUD_NAMES = DAILY_CLOUD_NAMES + [
     'aws-cn', 'aws-govcloud', 'joyent', 'rax']
-CLOUD_NAMES = {'daily': DAILY_CLOUD_NAMES, 'release': RELEASE_CLOUD_NAMES}
-DAILY_URL_PATTERN = ('http://cloud-images.ubuntu.com/daily/streams/v1'
-                     '/com.ubuntu.cloud:daily:{cloud_name}.json')
-RELEASE_URL_PATTERN = ('http://cloud-images.ubuntu.com/releases/streams/v1'
-                       '/com.ubuntu.cloud:released:{cloud_name}.json')
-TODAY = datetime.date.today()
-URL_PATTERNS = {'daily': DAILY_URL_PATTERN, 'release': RELEASE_URL_PATTERN}
-DOCKER_CORE_ROOT = 'https://partner-images.canonical.com/core'
-AWS_VIRT_STORE_SKIPS = {
-    # These virt/storage combinations were present in early xenial development
-    # dailies, but were dropped before release.
-    'xenial': ['hvm-ebs', 'hvm-io1', 'pv-ebs', 'pv-io1'],
+MACHINE_TYPE_FIELDS = ['virt', 'root_store']
+
+INDEX_PATH_TO_IMAGE_TYPE = {
+    'releases': 'release',
+    'minimal/releases': 'release',
+    'daily': 'daily',
+    'minimal/daily': 'daily'
 }
+
+TODAY = datetime.date.today()
+DOCKER_CORE_ROOT = 'https://partner-images.canonical.com/core'
 
 
 def _parse_serial_date_int_from_string(serial_str):
@@ -73,7 +70,7 @@ def get_current_download_serials(download_root):
     return current_serials
 
 
-def parse_simplestreams_for_images(cloud_name, image_type):
+def parse_simplestreams_for_images(products):
     """
     Use sstream-query to fetch supported image information.
 
@@ -82,30 +79,41 @@ def parse_simplestreams_for_images(cloud_name, image_type):
     AWS clouds, the first element of the tuple remains the same, but the
     second is {release: {virt_storage: {latest_serial}}}.
     """
-    url = URL_PATTERNS[image_type].format(cloud_name=cloud_name)
-    output = subprocess.check_output(['sstream-query', '--json', url])
-    image_counts = defaultdict(lambda: defaultdict(int))
-    if cloud_name.startswith('aws'):
-        # For AWS, we capture latest serial by virt/root store
-        latest_serials = defaultdict(lambda: defaultdict(int))
-    else:
-        latest_serials = defaultdict(int)
-    for product_dict in json.loads(output.decode('utf-8')):
-        release = product_dict['release']
-        image_counts[release][product_dict['arch']] += 1
-        serial = product_dict['version_name']
+    recursive_dict = lambda: defaultdict(recursive_dict)
+    image_statistics = recursive_dict()
+
+    for product in products:
+
+        image_type = INDEX_PATH_TO_IMAGE_TYPE[product['index_path']]
+
+        cloudname = product.get('cloudname')
+        if not cloudname and product['datatype'] == 'image-downloads':
+            cloudname = 'download'
+
+        machine_type = '-'.join(
+            filter(None, [product.get(f) for f in MACHINE_TYPE_FIELDS])
+        )
+
+        stat = image_statistics\
+            [image_type] \
+            [cloudname] \
+            [product['release']] \
+            [product['arch']] \
+            [machine_type]
+
+        stat['count'] = stat.get('count', 0) + 1
+
+        serial = product['version_name']
         if 'beta' in serial or 'LATEST' in serial:
             continue
         serial = _parse_serial_date_int_from_string(serial)
-        if cloud_name.startswith('aws'):
-            virt_storage = '-'.join(
-                [product_dict['virt'], product_dict['root_store']])
-            if serial > latest_serials[release][virt_storage]:
-                latest_serials[release][virt_storage] = serial
-        else:
-            if serial > latest_serials[release]:
-                latest_serials[release] = serial
-    return image_counts, latest_serials
+
+        current_serial = stat.get('latest_serial')
+        if current_serial is None or serial > current_serial:
+            stat['latest_serial'] = serial
+            stat['age'] = _determine_serial_age(serial)
+
+    return image_statistics
 
 
 def _determine_serial_age(serial):
@@ -113,39 +121,7 @@ def _determine_serial_age(serial):
     return (TODAY - serial_datetime.date()).days
 
 
-def do_aws_specific_collection(cloud_name, image_type, latest_serial_gauge,
-                               latest_serial_age_gauge):
-    """
-    Report AWS-specific metrics and return generic cloud data.
-
-    This returns the non-AWS-specific version of
-    parse_simplestreams_for_images' return tuples.
-    """
-    image_counts, aws_latest_serials = parse_simplestreams_for_images(
-        cloud_name, image_type)
-    latest_serials = {}
-    for release in aws_latest_serials:
-        # Some virt/storage combinations should be ignored, so we filter those
-        # out before we do anything else
-        aws_latest_serials[release] = {
-            k: v for k, v in aws_latest_serials[release].items()
-            if k not in AWS_VIRT_STORE_SKIPS.get(release, [])}
-        # aws_latest_serials contains an entry for each virt/storage combo; we
-        # want to use the oldest as the main cloud entry
-        latest_serials[release] = min(aws_latest_serials[release].values())
-        for virt_store in aws_latest_serials[release]:
-            aws_cloud_name = '{}:{}'.format(cloud_name, virt_store)
-            serial = aws_latest_serials[release][virt_store]
-            latest_serial_gauge.labels(
-                image_type, aws_cloud_name, release).set(serial)
-            latest_serial_age_gauge.labels(
-                image_type, aws_cloud_name, release).set(
-                    _determine_serial_age(serial))
-    return image_counts, latest_serials
-
-
-def collect(dryrun=False):
-    """Push published cloud image counts."""
+def create_gauges():
     registry = CollectorRegistry()
     count_gauge = Gauge('foundations_cloud_images_published',
                         'The number of cloud images published',
@@ -159,33 +135,90 @@ def collect(dryrun=False):
         'foundations_cloud_images_current_serial_age',
         'The time in days between the last serial and today',
         ['image_type', 'cloud', 'release'], registry=registry)
-    for image_type in ['daily', 'release']:
-        for cloud_name in CLOUD_NAMES[image_type]:
-            print('Counting {} images for {}...'.format(image_type,
-                                                        cloud_name))
-            if 'aws' in cloud_name:
-                image_counts, latest_serials = do_aws_specific_collection(
-                    cloud_name, image_type, latest_serial_gauge,
-                    latest_serial_age_gauge)
-            else:
-                image_counts, latest_serials = parse_simplestreams_for_images(
-                    cloud_name, image_type)
-            for release in image_counts:
-                for arch in image_counts[release]:
-                    count = image_counts[release][arch]
-                    print('Found {} {} images for {} {} {}'.format(
-                        count, image_type, cloud_name, release, arch))
+
+    return registry, (count_gauge, latest_serial_gauge, latest_serial_age_gauge)
+
+
+def set_gauges_from_stats(stats, gauges):
+    count_gauge, latest_serial_gauge, latest_serial_age_gauge = gauges
+
+    for image_type, clouds in stats.items():
+        for cloud_name, releases in clouds.items():
+            for release, arches in releases.items():
+                for arch, machines in arches.items():
+
                     count_gauge.labels(
-                        image_type, cloud_name, release, arch).set(count)
-            for release in latest_serials:
-                serial = latest_serials[release]
-                latest_serial_gauge.labels(
-                    image_type, cloud_name, release).set(serial)
-                latest_serial_age_gauge.labels(
-                    image_type, cloud_name, release).set(
-                        _determine_serial_age(serial))
-    print('Finding serials for docker-core...')
+                        image_type, cloud_name, release, arch
+                    ).set(sum([s['count'] for s in machines.values()]))
+
+                    serials = [(s.get('latest_serial'), s['age'])
+                               for s in machines.values()
+                               if s.get('latest_serial')]
+
+                    if serials:
+                        serial, age = max(serials, key=lambda v: v[0])
+                        latest_serial_gauge.labels(
+                            image_type, cloud_name, release
+                        ).set(serial)
+
+                        latest_serial_age_gauge.labels(
+                            image_type, cloud_name, release
+                        ).set(age)
+
+                    if len(machines) > 1:
+                        for machine_type, stat in machines.items():
+                            cloud_variant = cloud_name + ':' + machine_type
+
+                            # We don't publish image counts per variant ?
+                            # count_gauge.labels(
+                            #     image_type, cloud_variant, release, arch
+                            # ).set(stat['count'])
+
+                            if 'latest_serial' in stat:
+                                latest_serial_gauge.labels(
+                                    image_type, cloud_variant, release
+                                ).set(stat['latest_serial'])
+
+                                latest_serial_age_gauge.labels(
+                                    image_type, cloud_variant, release
+                                ).set(stat['age'])
+
+
+def collect(dryrun=False):
+    """Push published cloud image counts."""
+    registry, gauges = create_gauges()
+
+    mirror = UbuntuCloudImages()
+
+    release_clouds = ifilter('index_path ~ releases') & ifilter(
+        'content_id ~ ({})$'.format('|'.join(RELEASE_CLOUD_NAMES)))
+
+    daily_clouds = ifilter('index_path ~ daily') & ifilter(
+        'content_id ~ ({})$'.format('|'.join(DAILY_CLOUD_NAMES)))
+
+    interesting_images = (release_clouds | daily_clouds) & \
+                         (ifilter('cloudname !=') |
+                          ifilter('datatype = image-downloads'))
+
+    images = mirror.get_product_items(ifilter('cloudname !~ ^aws'), interesting_images)
+    stats = parse_simplestreams_for_images(images)
+    set_gauges_from_stats(stats, gauges)
+
+    # Special hand-holding for AWS
+
+    aws_deprecated = ifilter('release = xenial') & \
+                     ifilter('virt ~ ^(hvm|pv)$') & \
+                     ifilter('root_store ~ ^(io1|ebs)$')
+
+    aws_images = mirror.get_product_items(ifilter('cloudname ~ ^aws'),
+                                          interesting_images & -aws_deprecated)
+    aws_stats = parse_simplestreams_for_images(aws_images)
+    set_gauges_from_stats(aws_stats, gauges)
+
     docker_core_serials = get_current_download_serials(DOCKER_CORE_ROOT)
+
+    count_gauge, latest_serial_gauge, latest_serial_age_gauge = gauges
+
     for release, serial in docker_core_serials.items():
         age = _determine_serial_age(serial)
         print('Found {} latest serial: {} ({} days old)'.format(
@@ -204,4 +237,6 @@ if __name__ == '__main__':
     PARSER = argparse.ArgumentParser()
     PARSER.add_argument('--dryrun', action='store_true')
     ARGS = PARSER.parse_args()
+
+
     collect(ARGS.dryrun)
