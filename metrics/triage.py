@@ -6,8 +6,6 @@ Joshua Powers <josh.powers@canonical.com>
 """
 import argparse
 
-from prometheus_client import CollectorRegistry, Gauge
-
 from metrics.helpers import lp
 from metrics.helpers import util
 
