@@ -12,7 +12,6 @@ import urllib.request
 
 from datetime import date, timedelta
 import simplejson as json
-from prometheus_client import CollectorRegistry, Gauge
 
 from metrics.helpers import lp
 from metrics.helpers import util
@@ -79,6 +78,7 @@ def collect(team_name, dryrun=False):
         print('Team %s does not exist in LP.' % team_name)
         return
 
+    data = []
     mcp_data = team_subscribed_mcp_count(team_name)
 
     for series in mcp_data:
@@ -89,17 +89,19 @@ def collect(team_name, dryrun=False):
         team_name = team_name.replace('-', '_')
 
         print('Pushing data...')
-        registry = CollectorRegistry()
 
-        gauge = Gauge('%s_errors_mcp_sum_top_ten' % team_name,
-                      "Sum of yesterday's top ten crashes in errors",
-                      ['series'],
-                      registry=registry)
         for series in mcp_data:
-            gauge.labels(series).set(
-                mcp_data[series]['sum_top_ten_counts'])
+            data.append({
+                'measurement': '%s_errors_mcp_sum_top_ten' % team_name,
+                'fields': {
+                    'count': mcp_data[series]['sum_top_ten_counts']
+                },
+                'tags': {
+                    'series': series
+                }
+            })
 
-        util.push2gateway('%s_mcp_errors' % team_name, registry)
+        util.influxdb_insert(data)
 
 
 if __name__ == '__main__':
