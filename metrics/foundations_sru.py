@@ -10,7 +10,6 @@ import logging
 import urllib.request
 
 from bs4 import BeautifulSoup
-from prometheus_client import CollectorRegistry, Gauge
 
 try:
     from html.parser import HTMLParseError
@@ -231,6 +230,7 @@ def proposed_package_ages():
 
 def collect(dryrun=False):  # pylint: disable=too-many-branches
     """Collect and push SRU-related metrics."""
+    data = []
     sru_queues = sru_queue_count()
     ready_srus = sru_verified_and_ready_count()
     proposed_sru_age_data = proposed_package_ages()
@@ -281,73 +281,91 @@ def collect(dryrun=False):  # pylint: disable=too-many-branches
 
     if not dryrun:
         print('Pushing data...')
-        registry = CollectorRegistry()
 
-        gauge = Gauge(
-            'distro_sru_unapproved_proposed_count',
-            'Number of %s' % q_name,
-            ['series'],
-            registry=registry)
         for series, count in sru_queues.items():
-            gauge.labels(series).set(count)
+            data.append({
+                'measurement':
+                    'distro_sru_unapproved_proposed_count',
+                'fields': {
+                    'count': count
+                },
+                'tags': {
+                    'series': series
+                }
+            })
 
-        gauge = Gauge(
-            'distro_sru_unapproved_proposed_oldest_age',
-            'Age in days of oldest %s' % q_name.replace('Uploads', 'Upload'),
-            ['series'],
-            registry=registry)
         for series in unapproved_sru_age_data:
-            gauge.labels(series).set(
-                unapproved_sru_age_data[series]['oldest_age_in_days'])
+            data.append({
+                'measurement':
+                    'distro_sru_unapproved_proposed_oldest_age',
+                'fields': {
+                    'oldest_age_in_days':
+                        unapproved_sru_age_data[series]['oldest_age_in_days']
+                },
+                'tags': {
+                    'series': series
+                }
+            })
 
-        gauge = Gauge(
-            'distro_sru_unapproved_proposed_ten_day_backlog_age',
-            'Backlog age in days of %s' % q_name,
-            ['series'],
-            registry=registry)
         for series in unapproved_sru_age_data:
-            gauge.labels(series).set(
-                unapproved_sru_age_data[series]['ten_day_backlog_age'])
+            data.append({
+                'measurement':
+                    'distro_sru_unapproved_proposed_ten_day_backlog_age',
+                'fields': {
+                    'ten_day_backlog_age':
+                        unapproved_sru_age_data[series]['ten_day_backlog_age']
+                },
+                'tags': {
+                    'series': series
+                }
+            })
 
-        gauge = Gauge(
-            'distro_sru_unapproved_proposed_ten_day_backlog_count',
-            'Number of backlogged %s' % q_name,
-            ['series'],
-            registry=registry)
         for series in unapproved_sru_age_data:
-            gauge.labels(series).set(
-                unapproved_sru_age_data[series]['ten_day_backlog_count'])
+            data.append({
+                'measurement':
+                    'distro_sru_unapproved_proposed_ten_day_backlog_count',
+                'fields': {
+                    'ten_day_backlog_count':
+                        unapproved_sru_age_data[series]
+                        ['ten_day_backlog_count']
+                },
+                'tags': {
+                    'series': series
+                }
+            })
 
-        gauge = Gauge(
-            'distro_sru_verified_and_ready_count',
-            'Number of Publishable Updates in Proposed per Series',
-            ['series'],
-            registry=registry)
         for series, count in ready_srus.items():
-            gauge.labels(series).set(count)
+            data.append({
+                'measurement':
+                'distro_sru_verified_and_ready_count',
+                'fields': {
+                    'count': count
+                },
+                'tags': {
+                    'series': series
+                }
+            })
 
         for cat in ('unverified', 'verified', 'vfailed'):
-            gauge = Gauge(
-                'distro_sru_%s_proposed_fourteen_day_backlog_age' % cat,
-                'Backlog age in days of %s %s' % (cat, topic),
-                ['series'],
-                registry=registry)
             for series in proposed_sru_age_data:
-                gauge.labels(series).set(
-                    proposed_sru_age_data[series]
-                    ['fourteen_day_%s_backlog_age' % cat])
+                data.append({
+                    'measurement':
+                        'distro_sru_proposed_fourteen_day_backlog_age',
+                    'fields': {
+                        'backlog_age':
+                            proposed_sru_age_data[series]
+                            ['fourteen_day_%s_backlog_age' % cat],
+                        'backlog_count':
+                            proposed_sru_age_data[series]
+                            ['fourteen_day_%s_backlog_count' % cat]
+                    },
+                    'tags': {
+                        'series': series,
+                        'category': cat
+                    }
+                })
 
-            gauge = Gauge(
-                'distro_sru_%s_proposed_fourteen_day_backlog_count' % cat,
-                'Number of backlogged %s %s' % (cat, topic),
-                ['series'],
-                registry=registry)
-            for series in proposed_sru_age_data:
-                gauge.labels(series).set(
-                    proposed_sru_age_data[series]
-                    ['fourteen_day_%s_backlog_count' % cat])
-
-        util.push2gateway('foundations-sru', registry)
+        util.influxdb_insert(data)
 
 
 if __name__ == '__main__':
