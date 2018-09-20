@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
 """Submit metrics regarding queue depth for autopkgtest service.
 
-Copyright 2017 Canonical Ltd.
+Copyright 2017-2018 Canonical Ltd.
 Brian Murray <brian@canonical.com>
 """
 
 import argparse
-
-from prometheus_client import CollectorRegistry, Gauge
 
 from metrics.helpers import util
 
@@ -30,19 +28,24 @@ def collect(queue_name, dryrun=False):
 
     if not dryrun:
         print('Pushing data...')
-        registry = CollectorRegistry()
+        data = []
 
         for release in queue_details:
             for arch in queue_details[release]:
                 count = len(queue_details[release][arch])
-                Gauge('autopkgtest_queue_size_%s_%s_%s' %
-                      (queue_name, release, arch),
-                      "Autopkgtest queue size",
-                      None,
-                      registry=registry).set(count)
+                data.append({
+                    'measurement': 'foundations_autopkgtest_queue',
+                    'fields': {
+                        'queue_size': count,
+                    },
+                    'tags': {
+                        'queue': queue_name,
+                        'release': release,
+                        'arch': arch,
+                    }
+                })
 
-        util.push2gateway('foundations-autopkgtest-%s' %
-                          queue_name, registry)
+        util.influxdb_insert(data)
 
 
 if __name__ == '__main__':
