@@ -95,7 +95,7 @@ def collect(team_name, dryrun=False):
                 'measurement': '%s_errors_mcp_sum_top_ten' % team_name,
                 'fields': {
                     'count': mcp_data[series]['sum_top_ten_counts']
-                }
+                },
                 'tags': {
                     'series': series
                 }
