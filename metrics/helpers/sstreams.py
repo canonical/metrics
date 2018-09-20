@@ -5,7 +5,10 @@ from urllib.parse import urljoin
 from simplestreams.contentsource import UrlContentSource
 from simplestreams.filters import ItemFilter as SSFilter
 from simplestreams.generate_simplestreams import FileNamer
-from simplestreams.util import products_exdata
+from simplestreams.util import products_exdata, expand_tree
+import logging
+
+logger = logging.getLogger(__name__)
 
 UBUNTU_CLOUD_IMAGES_BASE_URL = 'http://cloud-images.ubuntu.com'
 UBUNTU_CLOUD_IMAGE_INDEXES = ['releases', 'daily',
@@ -30,11 +33,15 @@ class ProductsContentSource(UrlContentSource):
     def get_product_items(self, filter: Optional[SSFilter] = None):
         filter = filter or AndFilter()
 
+        logger.debug('Fetching {}'.format(str(self)))
+
         contents = super().read()
         super().close()
         stream = json.loads(contents)
         assert stream.get('format') == 'products:1.0', \
             'simplestreams product stream is of supported version'
+
+        expand_tree(stream)
 
         for product_name, product in stream.get('products', {}).items():
             for version_name, version in product.get('versions', {}).items():
@@ -65,6 +72,8 @@ class IndexContentSource(UrlContentSource):
 
     def get_product_streams(self, filter: Optional[SSFilter] = None):
         filter = filter or AndFilter()
+
+        logger.debug('Fetching {}'.format(str(self)))
 
         contents = super().read()
         super().close()
@@ -146,9 +155,22 @@ class LogicFilter(ItemFilter):
         return self.__str__()
 
     def matches(self, item):
-        op = self.operation
         filters_eval = [f.matches(item) for f in self.filters]
-        return op(filters_eval)
+        retval = self.operation(filters_eval)
+        return retval
+
+    def non_matching_recursive_filters(self, item):
+        if isinstance(self, OrFilter):  # at least one should match
+            if not self.matches(item):  # if none of them match, yield all of them
+                yield from self.filters
+
+        else:
+            for f in self.filters:
+                if isinstance(f, LogicFilter):
+                    yield from f.non_matching_recursive_filters(item)
+                else:
+                    if not f.matches(item):
+                        yield f
 
 
 class OrFilter(LogicFilter):
