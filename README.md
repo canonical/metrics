@@ -1,6 +1,6 @@
 # Metrics
 
-[![Build Status](https://travis-ci.org/canonical-server/metrics.svg?branch=master)](https://travis-ci.org/canonical-server/metrics)
+[![Build Status](https://travis-ci.org/CanonicalLtd/metrics.svg?branch=master)](https://travis-ci.org/CanonicalLtd/metrics)
 
 Scripts used to generate metrics for the Server and Foundations Teams.
 
