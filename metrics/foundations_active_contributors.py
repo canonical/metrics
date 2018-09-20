@@ -8,8 +8,6 @@ Copyright 2017 Canonical Ltd.
 import argparse
 import psycopg2
 
-from prometheus_client import CollectorRegistry, Gauge
-
 from metrics.helpers import lp
 from metrics.helpers import util
 
@@ -140,21 +138,17 @@ def collect(dryrun=False):
 
     if not dryrun:
         print('Pushing data...')
-        registry = CollectorRegistry()
 
-        gauge = Gauge('foundations_recent_uploaders',
-                      'Active Recent Ubuntu Uploaders',
-                      ['affiliation'],
-                      registry=registry)
-        gauge.labels('Canonical Uploaders').set(canonical)
-        gauge.labels('Non-Canonical Uploaders').set(noncanonical)
+        data = [{
+            'measurement': 'foundations_active_contributors',
+            'fields': {
+                'canonical-uploaders': canonical,
+                'non-canonical-uploaders': noncanonical,
+                'main-universe-uploaders': uploaders,
+            }
+        }]
 
-        Gauge('foundations_main_universe_uploaders',
-              'Current Users with Main/Universe Upload Rights',
-              None,
-              registry=registry).set(uploaders)
-
-        util.push2gateway('foundations-active-contributors', registry)
+        util.influxdb_insert(data)
 
 
 if __name__ == '__main__':
