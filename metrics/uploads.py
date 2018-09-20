@@ -9,8 +9,6 @@ import argparse
 
 from datetime import datetime
 
-from prometheus_client import CollectorRegistry, Gauge
-
 from metrics.helpers import lp
 from metrics.helpers import util
 
