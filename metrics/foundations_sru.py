@@ -284,7 +284,8 @@ def collect(dryrun=False):  # pylint: disable=too-many-branches
 
         for series, count in sru_queues.items():
             data.append({
-                'measurement': 'distro_sru_unapproved_proposed_count',
+                'measurement':
+                    'distro_sru_unapproved_proposed_count',
                 'fields': {
                     'count': count
                 },
@@ -295,9 +296,11 @@ def collect(dryrun=False):  # pylint: disable=too-many-branches
 
         for series in unapproved_sru_age_data:
             data.append({
-                'measurement': 'distro_sru_unapproved_proposed_oldest_age',
+                'measurement':
+                    'distro_sru_unapproved_proposed_oldest_age',
                 'fields': {
-                    'oldest_age_in_days': unapproved_sru_age_data[series]['oldest_age_in_days']
+                    'oldest_age_in_days':
+                        unapproved_sru_age_data[series]['oldest_age_in_days']
                 },
                 'tags': {
                     'series': series
@@ -306,9 +309,11 @@ def collect(dryrun=False):  # pylint: disable=too-many-branches
 
         for series in unapproved_sru_age_data:
             data.append({
-                'measurement': 'distro_sru_unapproved_proposed_ten_day_backlog_age',
+                'measurement':
+                    'distro_sru_unapproved_proposed_ten_day_backlog_age',
                 'fields': {
-                    'ten_day_backlog_age': unapproved_sru_age_data[series]['ten_day_backlog_age']
+                    'ten_day_backlog_age':
+                        unapproved_sru_age_data[series]['ten_day_backlog_age']
                 },
                 'tags': {
                     'series': series
@@ -317,9 +322,12 @@ def collect(dryrun=False):  # pylint: disable=too-many-branches
 
         for series in unapproved_sru_age_data:
             data.append({
-                'measurement': 'distro_sru_unapproved_proposed_ten_day_backlog_count',
+                'measurement':
+                    'distro_sru_unapproved_proposed_ten_day_backlog_count',
                 'fields': {
-                    'ten_day_backlog_count': unapproved_sru_age_data[series]['ten_day_backlog_count']
+                    'ten_day_backlog_count':
+                        unapproved_sru_age_data[series]
+                        ['ten_day_backlog_count']
                 },
                 'tags': {
                     'series': series
@@ -328,7 +336,8 @@ def collect(dryrun=False):  # pylint: disable=too-many-branches
 
         for series, count in ready_srus.items():
             data.append({
-                'measurement': 'distro_sru_verified_and_ready_count',
+                'measurement':
+                'distro_sru_verified_and_ready_count',
                 'fields': {
                     'count': count
                 },
@@ -340,11 +349,14 @@ def collect(dryrun=False):  # pylint: disable=too-many-branches
         for cat in ('unverified', 'verified', 'vfailed'):
             for series in proposed_sru_age_data:
                 data.append({
-                    'measurement': 'distro_sru_proposed_fourteen_day_backlog_age',
+                    'measurement':
+                        'distro_sru_proposed_fourteen_day_backlog_age',
                     'fields': {
-                        'backlog_age': proposed_sru_age_data[series]
+                        'backlog_age':
+                            proposed_sru_age_data[series]
                             ['fourteen_day_%s_backlog_age' % cat],
-                        'backlog_count': proposed_sru_age_data[series]
+                        'backlog_count':
+                            proposed_sru_age_data[series]
                             ['fourteen_day_%s_backlog_count' % cat]
                     },
                     'tags': {
@@ -354,6 +366,7 @@ def collect(dryrun=False):  # pylint: disable=too-many-branches
                 })
 
         util.influxdb_insert(data)
+
 
 if __name__ == '__main__':
     PARSER = argparse.ArgumentParser()
