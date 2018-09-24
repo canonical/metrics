@@ -5,12 +5,10 @@ from io import StringIO
 import logging
 import urllib
 
-from prometheus_client import CollectorRegistry, Gauge
-
 from metrics.helpers import util
 
 
-def get_proposed_migration_queue(registry):
+def get_proposed_migration_queue(data):
     """Get information about current proposed-migration queue."""
     src = 'https://people.canonical.com/~ubuntu-archive/proposed-migration/' \
           + 'update_excuses.csv'
@@ -27,29 +25,25 @@ def get_proposed_migration_queue(registry):
     valid, not_considered = [int(x) for x in latest[1:3]]
     median_age, backlog = [int(x) for x in latest[4:6]]
 
-    gauge = Gauge('foundations_devel_proposed_migration_size',
-                  'Number of packages waiting in devel-proposed',
-                  ['candidate'],
-                  registry=registry)
-    gauge.labels('Valid Candidates').set(valid)
-    gauge.labels('Not Considered').set(not_considered)
-
-    Gauge('foundations_devel_proposed_migration_age',
-          'Median age of packages waiting in devel-proposed',
-          None,
-          registry=registry).set(median_age)
-
-    Gauge('foundations_devel_proposed_migration_backlog',
-          'Size of devel-proposed backlog (packages x days)',
-          None,
-          registry=registry).set(backlog)
+    data.append({
+        'measurement': 'foundations_devel_proposed_migration',
+        'fields': {
+            # Number of packages waiting in devel-proposed
+            'valid_candidates': valid,
+            'not_considered': not_considered,
+            # Median age of packages waiting in devel-proposed
+            'median_age': median_age,
+            # Size of devel-proposed backlog (packages x days)
+            'backlog': backlog,
+        },
+    })
 
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
 
-    REGISTRY = CollectorRegistry()
+    DATA = []
     try:
-        get_proposed_migration_queue(REGISTRY)
+        get_proposed_migration_queue(DATA)
     finally:
-        util.push2gateway('proposed_migration', REGISTRY)
+        util.influxdb_insert(DATA)
