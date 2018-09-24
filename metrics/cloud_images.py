@@ -44,6 +44,14 @@ def _parse_serial_date_int_from_string(serial_str):
 
 
 def _gen_influx_metric(measurement, value, **kwargs):
+    """
+    Generate InfluxDB-shaped datapoint dictionary.
+
+    :param measurement: measurement suffix
+    :param value: measurement value
+    :param kwargs: dict of tags to associate with the measurement
+    :return: dict, influx-db shaped datapoint
+    """
     tags = {k: None for k in ['image_type', 'cloud', 'release']}
     tags.update({'job': 'cloud-image-count-foundations'})
     tags.update(kwargs)
