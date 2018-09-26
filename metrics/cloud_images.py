@@ -14,7 +14,6 @@ from collections import defaultdict
 
 import distro_info  # pylint: disable=wrong-import-order
 import requests
-from prometheus_client import CollectorRegistry, Gauge
 
 from metrics.helpers import util
 
@@ -42,6 +41,27 @@ def _parse_serial_date_int_from_string(serial_str):
     if match is None:
         raise Exception('No serial found in {}'.format(serial_str))
     return int(match.group(0))
+
+
+def _gen_influx_metric(measurement, value, **kwargs):
+    """
+    Generate InfluxDB-shaped datapoint dictionary.
+
+    :param measurement: measurement suffix
+    :param value: measurement value
+    :param kwargs: dict of tags to associate with the measurement
+    :return: dict, influx-db shaped datapoint
+    """
+    tags = {k: None for k in ['image_type', 'cloud', 'release']}
+    tags.update({'job': 'cloud-image-count-foundations'})
+    tags.update(kwargs)
+
+    return {
+        'time': datetime.datetime.utcnow(),
+        'measurement': 'foundations_cloud_images_'+measurement,
+        'tags': tags,
+        'fields': {'value': value},
+    }
 
 
 def get_current_download_serials(download_root):
@@ -113,8 +133,7 @@ def _determine_serial_age(serial):
     return (TODAY - serial_datetime.date()).days
 
 
-def do_aws_specific_collection(cloud_name, image_type, latest_serial_gauge,
-                               latest_serial_age_gauge):
+def do_aws_specific_collection(cloud_name, image_type, metrics_collection):
     """
     Report AWS-specific metrics and return generic cloud data.
 
@@ -136,37 +155,29 @@ def do_aws_specific_collection(cloud_name, image_type, latest_serial_gauge,
         for virt_store in aws_latest_serials[release]:
             aws_cloud_name = '{}:{}'.format(cloud_name, virt_store)
             serial = aws_latest_serials[release][virt_store]
-            latest_serial_gauge.labels(
-                image_type, aws_cloud_name, release).set(serial)
-            latest_serial_age_gauge.labels(
-                image_type, aws_cloud_name, release).set(
-                    _determine_serial_age(serial))
+            age = _determine_serial_age(serial)
+
+            tags = dict(image_type=image_type, cloud=aws_cloud_name,
+                        release=release)
+            metrics_collection.append(
+                _gen_influx_metric('current_serial', serial, **tags))
+            metrics_collection.append(
+                _gen_influx_metric('current_serial_age', age, **tags))
+
     return image_counts, latest_serials
 
 
 def collect(dryrun=False):
     """Push published cloud image counts."""
-    registry = CollectorRegistry()
-    count_gauge = Gauge('foundations_cloud_images_published',
-                        'The number of cloud images published',
-                        ['image_type', 'cloud', 'release', 'arch'],
-                        registry=registry)
-    latest_serial_gauge = Gauge('foundations_cloud_images_current_serial',
-                                'The date portion of the latest serial',
-                                ['image_type', 'cloud', 'release'],
-                                registry=registry)
-    latest_serial_age_gauge = Gauge(
-        'foundations_cloud_images_current_serial_age',
-        'The time in days between the last serial and today',
-        ['image_type', 'cloud', 'release'], registry=registry)
+    metrics_collection = []
+
     for image_type in ['daily', 'release']:
         for cloud_name in CLOUD_NAMES[image_type]:
             print('Counting {} images for {}...'.format(image_type,
                                                         cloud_name))
             if 'aws' in cloud_name:
                 image_counts, latest_serials = do_aws_specific_collection(
-                    cloud_name, image_type, latest_serial_gauge,
-                    latest_serial_age_gauge)
+                    cloud_name, image_type, metrics_collection)
             else:
                 image_counts, latest_serials = parse_simplestreams_for_images(
                     cloud_name, image_type)
@@ -175,29 +186,54 @@ def collect(dryrun=False):
                     count = image_counts[release][arch]
                     print('Found {} {} images for {} {} {}'.format(
                         count, image_type, cloud_name, release, arch))
-                    count_gauge.labels(
-                        image_type, cloud_name, release, arch).set(count)
+
+                    metrics_collection.append(_gen_influx_metric(
+                        'published',
+                        count,
+                        image_type=image_type,
+                        cloud=cloud_name,
+                        release=release,
+                        arch=arch
+                    ))
+
             for release in latest_serials:
                 serial = latest_serials[release]
-                latest_serial_gauge.labels(
-                    image_type, cloud_name, release).set(serial)
-                latest_serial_age_gauge.labels(
-                    image_type, cloud_name, release).set(
-                        _determine_serial_age(serial))
+                age = _determine_serial_age(serial)
+
+                tags = dict(image_type=image_type, cloud=cloud_name,
+                            release=release)
+                metrics_collection.append(
+                    _gen_influx_metric('current_serial', serial, **tags))
+                metrics_collection.append(
+                    _gen_influx_metric('current_serial_age', age, **tags))
+
+            if not dryrun:
+                print('Pushing data...')
+                util.influxdb_insert(metrics_collection)
+            else:
+                import pprint
+                pprint.pprint(metrics_collection)
+            metrics_collection = []
+
     print('Finding serials for docker-core...')
     docker_core_serials = get_current_download_serials(DOCKER_CORE_ROOT)
     for release, serial in docker_core_serials.items():
         age = _determine_serial_age(serial)
         print('Found {} latest serial: {} ({} days old)'.format(
             release, serial, age))
-        latest_serial_gauge.labels(
-            'daily', 'docker-core', release).set(serial)
-        latest_serial_age_gauge.labels(
-            'daily', 'docker-core', release).set(age)
+
+        tags = dict(image_type='daily', cloud='docker-core', release=release)
+        metrics_collection.append(
+            _gen_influx_metric('current_serial', serial, **tags))
+        metrics_collection.append(
+            _gen_influx_metric('current_serial_age', age, **tags))
 
     if not dryrun:
         print('Pushing data...')
-        util.push2gateway('cloud-image-count-foundations', registry)
+        util.influxdb_insert(metrics_collection)
+    else:
+        import pprint
+        pprint.pprint(metrics_collection)
 
 
 if __name__ == '__main__':

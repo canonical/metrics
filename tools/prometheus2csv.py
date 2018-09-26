@@ -60,6 +60,22 @@ def print_multi_result(results, label):
         print_result(date, ','.join(values.values()))
 
 
+def print_with_labels(results, labels):
+    """
+    Print timeseries values, adding labels as extra csv columns.
+
+    :param results: Prometheus result collection
+    :param labels: a list of metric names to extract into columns
+    :return: None
+    """
+    print('date,value,%s' % ','.join(labels))
+    for result in results:
+        metric = result.get('metric', {})
+        for date, value in result.get('values', []):
+            print_result(date,
+                         ','.join([value] + [metric.get(l) for l in labels]))
+
+
 def query_prometheus(url, params):
     """
     Query Prometheus for data.
@@ -82,7 +98,7 @@ def query_prometheus(url, params):
     return results
 
 
-def runner(metric, label, days, step):
+def runner(metric, label, days, step, attach_labels=None):
     """
     Query Prometheus for specific metric print out csv output.
 
@@ -90,6 +106,7 @@ def runner(metric, label, days, step):
     @param label_key: use specified label key instead of metric name
     @param days: number of days to get data for
     @param step: time step in results
+    @param attach_labels: extract metrics with their label values
     """
     server_address = util.get_prometheus_ip()
 
@@ -102,6 +119,9 @@ def runner(metric, label, days, step):
         query = metric
     else:
         query = 'avg(%s)' % metric
+
+    if attach_labels:
+        query += ' by ({})'.format(','.join(attach_labels))
 
     params = {
         'query': query,
@@ -116,6 +136,9 @@ def runner(metric, label, days, step):
         print_simple(results, metric)
     elif label:
         print_multi_result(results, label)
+    elif attach_labels:
+        print_with_labels(results, attach_labels)
+
     else:
         print('multi-dimentional results, please specify a label from:')
         print(', '.join(results[0]['metric'].keys()))
@@ -134,7 +157,12 @@ if __name__ == '__main__':
                         help='How many days of data to get')
     PARSER.add_argument('--step', default='1h',
                         help='Interval of results')
+    PARSER.add_argument('--attach-label', default=None, action='append',
+                        help='Include a label into the output. '
+                             'Can be specified multiple times. '
+                             'Metric value column will be called "value". '
+                             'Does not work with --label')
 
     ARGS = PARSER.parse_args()
 
-    runner(ARGS.metric, ARGS.label, ARGS.days, ARGS.step)
+    runner(ARGS.metric, ARGS.label, ARGS.days, ARGS.step, ARGS.attach_label)
