@@ -6,8 +6,6 @@ Daniel Watkins <daniel.watkins@canonical.com>
 """
 import argparse
 import datetime
-import logging
-import sys
 import os.path
 import re
 from collections import defaultdict
@@ -17,8 +15,6 @@ import requests
 from metrics.helpers.sstreams import UbuntuCloudImages, ifilter
 from metrics.helpers import util
 
-logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
-logger = logging.getLogger('cloud_images')
 
 DAILY_CLOUD_NAMES = ['azure', 'aws', 'download', 'gce']
 RELEASE_CLOUD_NAMES = DAILY_CLOUD_NAMES + [
@@ -138,7 +134,7 @@ def _determine_serial_age(serial):
     return (TODAY - serial_datetime.date()).days
 
 
-def _gen_influx_metric(measurement, value, **kwargs):
+def _emit_metric(measurement, value, **kwargs):
     """
     Generate InfluxDB-shaped datapoint dictionary.
 
@@ -180,13 +176,13 @@ def set_metrics_from_stats(metrics, stats):
                                             stat_entry)
 
 
-def _set_metrics_from_stat_item(metrics_collection, path, stat_entry):
+def _set_metrics_from_stat_item(metrics, path, stat_entry):
     image_type, cloud_name, release = path
 
     tags = dict(image_type=image_type, cloud=cloud_name, release=release)
 
     for arch, stat in stat_entry['by-arch'].items():
-        metrics_collection.append(_gen_influx_metric(
+        metrics.append(_emit_metric(
             'published',
             stat['count'],
             arch=arch,
@@ -194,9 +190,9 @@ def _set_metrics_from_stat_item(metrics_collection, path, stat_entry):
         ))
 
     if 'latest_serial' in stat_entry:
-        metrics_collection.append(_gen_influx_metric(
+        metrics.append(_emit_metric(
             'current_serial', stat_entry['latest_serial'], **tags))
-        metrics_collection.append(_gen_influx_metric(
+        metrics.append(_emit_metric(
             'current_serial_age', stat_entry['age'], **tags))
 
     if len(stat_entry['by-machine']) > 1:
@@ -206,42 +202,28 @@ def _set_metrics_from_stat_item(metrics_collection, path, stat_entry):
 
             tags['cloud'] = cloud_name + ':' + machine_type
 
-            metrics_collection.append(_gen_influx_metric(
+            metrics.append(_emit_metric(
                 'current_serial', stat['latest_serial'], **tags))
-            metrics_collection.append(_gen_influx_metric(
+            metrics.append(_emit_metric(
                 'current_serial_age', stat['age'], **tags))
 
 
 def collect(dryrun=False):
     """Push published cloud image counts."""
-    metrics_collection = []
-    mirror = UbuntuCloudImages()
+    metrics = []
 
-    release_clouds = ifilter('index_path = releases') & ifilter(
-        'content_id ~ ({})$'.format('|'.join(RELEASE_CLOUD_NAMES)))
-
-    daily_clouds = ifilter('index_path = daily') & ifilter(
-        'content_id ~ ({})$'.format('|'.join(DAILY_CLOUD_NAMES)))
-
-    interesting_images = (release_clouds | daily_clouds) & \
-                         (ifilter('cloudname !=') |
-                          ifilter('datatype = image-downloads'))
+    interesting_images = _get_interesting_images()
     aws_clouds = ifilter('cloudname ~ ^aws')
 
     print('Finding serials for non-aws clouds...')
-    images = mirror.get_product_items(-aws_clouds, interesting_images)
-    stats = parse_simplestreams_for_images(images)
-    set_metrics_from_stats(metrics_collection, stats)
+    _collect_metrics(-aws_clouds, interesting_images, metrics)
 
     print('Finding serials for AWS clouds...')
     aws_deprecated = (ifilter('release = xenial') &
                       ifilter('virt ~ ^(hvm|pv)$') &
                       ifilter('root_store ~ ^(io1|ebs)$'))
 
-    aws_images = mirror.get_product_items(aws_clouds,
-                                          interesting_images & -aws_deprecated)
-    aws_stats = parse_simplestreams_for_images(aws_images)
-    set_metrics_from_stats(metrics_collection, aws_stats)
+    _collect_metrics(aws_clouds, interesting_images & -aws_deprecated, metrics)
 
     print('Finding serials for docker-core...')
     docker_core_serials = get_current_download_serials(DOCKER_CORE_ROOT)
@@ -251,17 +233,36 @@ def collect(dryrun=False):
             release, serial, age))
 
         tags = dict(image_type='daily', cloud='docker-core', release=release)
-        metrics_collection.append(
-            _gen_influx_metric('current_serial', serial, **tags))
-        metrics_collection.append(
-            _gen_influx_metric('current_serial_age', age, **tags))
+        metrics.append(_emit_metric('current_serial', serial, **tags))
+        metrics.append(_emit_metric('current_serial_age', age, **tags))
 
     if not dryrun:
         print('Pushing data...')
-        util.influxdb_insert(metrics_collection)
+        util.influxdb_insert(metrics)
     else:
         import pprint
-        pprint.pprint(metrics_collection)
+        pprint.pprint(metrics)
+
+
+def _collect_metrics(stream_filter, item_filter, metrics_target):
+    print('streams', stream_filter)
+    print('items', item_filter)
+    images = UbuntuCloudImages().get_product_items(stream_filter, item_filter)
+    stats = parse_simplestreams_for_images(images)
+    set_metrics_from_stats(metrics_target, stats)
+
+
+def _get_interesting_images():
+    release_clouds = ifilter('index_path = releases') & ifilter(
+        'content_id ~ ({})$'.format('|'.join(RELEASE_CLOUD_NAMES)))
+
+    daily_clouds = ifilter('index_path = daily') & ifilter(
+        'content_id ~ ({})$'.format('|'.join(DAILY_CLOUD_NAMES)))
+
+    interesting_images = (release_clouds | daily_clouds) & \
+                         (ifilter('cloudname !=') |
+                          ifilter('datatype = image-downloads'))
+    return interesting_images
 
 
 if __name__ == '__main__':

@@ -5,19 +5,18 @@ Aleksandr Bogdanov <aleksandr.bogdanov@canonical.com>
 """
 
 import json
-from typing import List, Optional
+from typing import List, Optional, Union
 from urllib.parse import urljoin
-import logging
 
+# pylint: disable=import-error
 from simplestreams.contentsource import UrlContentSource
 from simplestreams.filters import ItemFilter as SSFilter
 from simplestreams.generate_simplestreams import FileNamer
 from simplestreams.util import products_exdata, expand_tree
 
-logger = logging.getLogger(__name__)
 
 UBUNTU_CLOUD_IMAGES_BASE_URL = 'http://cloud-images.ubuntu.com'
-UBUNTU_CLOUD_IMAGE_INDEXES = ['releases', 'daily',
+UBUNTU_CLOUD_IMAGE_INDICES = ['releases', 'daily',
                               'minimal/releases', 'minimal/daily']
 
 PEDIGREE_STREAM_PROPERTIES = ['cloudname', 'datatype', 'index_path']
@@ -46,8 +45,6 @@ class ProductsContentSource(UrlContentSource):
         :param itemfilter: simplestreams.filters.ItemFilter
         """
         itemfilter = itemfilter or AndFilter()  # empty AndFilter is true
-
-        logger.debug('Fetching %s', self)
 
         contents = super().read()
         super().close()
@@ -79,13 +76,13 @@ STREAM_READERS = {'products:1.0': ProductsContentSource}
 class IndexContentSource(UrlContentSource):
     """A UrlContentSource that can work with ubuntu-shaped stream indices."""
 
-    def __init__(self, base_url, entry_readers=STREAM_READERS, info=None):
+    def __init__(self, base_url, entry_readers=None, info=None):
         """Construct the class."""
         base_url = base_url.rstrip('/') + '/'
         known_idx_path = FileNamer.get_index_path()
         super().__init__(urljoin(base_url, known_idx_path))
         self.base_url = base_url
-        self.entry_readers = entry_readers
+        self.entry_readers = entry_readers or STREAM_READERS
         self.info = info or {}
 
     def get_product_streams(self, itemfilter: Optional[SSFilter] = None):
@@ -95,8 +92,6 @@ class IndexContentSource(UrlContentSource):
         :param itemfilter: simplestreams.filters.ItemFilter
         """
         itemfilter = itemfilter or AndFilter()
-
-        logger.debug('Fetching %s', self)
 
         contents = super().read()
         super().close()
@@ -130,10 +125,10 @@ class UbuntuCloudImages:
     indexes: List[IndexContentSource] = None
 
     def __init__(self, base_url=UBUNTU_CLOUD_IMAGES_BASE_URL,
-                 index_paths=UBUNTU_CLOUD_IMAGE_INDEXES):
+                 index_paths=None):
         """Construct the class."""
         self.indexes = []
-        for index in index_paths:
+        for index in (index_paths or UBUNTU_CLOUD_IMAGE_INDICES):
             self.indexes.append(
                 IndexContentSource(
                     urljoin(base_url, index),
@@ -152,8 +147,26 @@ class UbuntuCloudImages:
             yield from stream.get_product_items(item_filter)
 
 
-class ItemFilter(SSFilter):
+def ifilter(expr, noneval=""):
     """Item filtering helper for syntax sugar."""
+    return MultiFilter(SSFilter(expr, noneval))
+
+
+class MultiFilter:
+    """Item filtering helper for syntax sugar."""
+
+    operation = bool
+    symbol = ''
+
+    def __init__(self, *filters: Union[SSFilter, 'MultiFilter']):
+        """Construct the class."""
+        self.filters = filters
+
+    def __str__(self):
+        """Return str(self)."""
+        return (self.symbol+'({})').format(
+            ','.join([str(f) for f in self.filters])
+        )
 
     def __or__(self, other):
         """Provide syntactic sugar."""
@@ -166,29 +179,6 @@ class ItemFilter(SSFilter):
     def __neg__(self):
         """Provide syntactic sugar."""
         return NotFilter(self)
-
-
-def ifilter(expr, noneval=""):
-    """Item filtering helper for syntax sugar."""
-    return ItemFilter(expr, noneval)
-
-
-class LogicFilter(ItemFilter):
-    """Item filtering helper for syntax sugar."""
-
-    operation = bool
-    symbol = 'bool'
-
-    def __init__(self, *filters, noneval=""):
-        """Construct the class."""
-        self.filters = [ItemFilter(f, noneval)
-                        if isinstance(f, str) else f for f in filters]
-
-    def __str__(self):
-        """Return str(self)."""
-        return (self.symbol+'({})').format(
-            ','.join([str(f) for f in self.filters])
-        )
 
     def matches(self, item):
         """Check if the item dict passes the current filter collection."""
@@ -208,28 +198,28 @@ class LogicFilter(ItemFilter):
 
         else:
             for itemfilter in self.filters:
-                if isinstance(itemfilter, LogicFilter):
+                if isinstance(itemfilter, MultiFilter):
                     yield from itemfilter.non_matching_recursive_filters(item)
                 else:
                     if not itemfilter.matches(item):
                         yield itemfilter
 
 
-class OrFilter(LogicFilter):
+class OrFilter(MultiFilter):
     """Item filtering helper for syntax sugar."""
 
     operation = any
     symbol = 'any'
 
 
-class AndFilter(LogicFilter):
+class AndFilter(MultiFilter):
     """Item filtering helper for syntax sugar."""
 
     operation = all
     symbol = 'all'
 
 
-class NotFilter(LogicFilter):
+class NotFilter(MultiFilter):
     """Item filtering helper for syntax sugar."""
 
     symbol = '!'
