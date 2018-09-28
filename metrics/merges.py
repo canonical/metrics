@@ -8,8 +8,6 @@ import argparse
 from collections import defaultdict, deque
 import urllib.request
 
-from prometheus_client import CollectorRegistry, Gauge
-
 from metrics.helpers import util
 
 URL_TEMPLATE = 'https://merges.ubuntu.com/stats-{launchpad_team_name}.txt'
