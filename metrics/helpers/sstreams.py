@@ -5,7 +5,6 @@ Aleksandr Bogdanov <aleksandr.bogdanov@canonical.com>
 """
 
 import json
-from typing import List, Optional, Union
 from urllib.parse import urljoin
 
 # pylint: disable=import-error
@@ -38,11 +37,11 @@ class ProductsContentSource(UrlContentSource):
                 item[prop] = val
         return item
 
-    def get_product_items(self, itemfilter: Optional[SSFilter] = None):
+    def get_product_items(self, itemfilter=None):
         """
         Parse products from this ContentSource, matching the filter.
 
-        :param itemfilter: simplestreams.filters.ItemFilter
+        :type itemfilter: Optional[SSFilter]
         """
         itemfilter = itemfilter or AndFilter()  # empty AndFilter is true
 
@@ -85,11 +84,11 @@ class IndexContentSource(UrlContentSource):
         self.entry_readers = entry_readers or STREAM_READERS
         self.info = info or {}
 
-    def get_product_streams(self, itemfilter: Optional[SSFilter] = None):
+    def get_product_streams(self, itemfilter=None):
         """
         Parse streams from this ContentSource, matching the filter.
 
-        :param itemfilter: simplestreams.filters.ItemFilter
+        :type itemfilter: Optional[SSFilter]
         """
         itemfilter = itemfilter or AndFilter()
 
@@ -122,7 +121,8 @@ class IndexContentSource(UrlContentSource):
 class UbuntuCloudImages:
     """Aggregates all the image indices on cloud-images.ubuntu.com."""
 
-    indexes: List[IndexContentSource] = None
+    indexes = None
+    ''':type: List[IndexContentSource]'''
 
     def __init__(self, base_url=UBUNTU_CLOUD_IMAGES_BASE_URL,
                  index_paths=None):
@@ -158,8 +158,12 @@ class MultiFilter:
     operation = bool
     symbol = ''
 
-    def __init__(self, *filters: Union[SSFilter, 'MultiFilter']):
-        """Construct the class."""
+    def __init__(self, *filters):
+        """
+        Construct the class.
+
+        :type: filters: List[Union[SSFilter, 'MultiFilter']]
+        """
         self.filters = filters
 
     def __str__(self):
