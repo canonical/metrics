@@ -147,16 +147,20 @@ class UbuntuCloudImages:
             yield from stream.get_product_items(item_filter)
 
 
-def ifilter(expr, noneval=""):
+def ifilter(*expr, noneval=""):
     """Item filtering helper for syntax sugar."""
-    return MultiFilter(SSFilter(expr, noneval))
+    return AndFilter(*[SSFilter(e, noneval) for e in expr])
 
 
 class MultiFilter:
     """Item filtering helper for syntax sugar."""
 
-    operation = bool
     symbol = ''
+
+    @staticmethod
+    def operation(value):
+        """Check the filters succeed."""
+        raise NotImplementedError()
 
     def __init__(self, *filters):
         """
