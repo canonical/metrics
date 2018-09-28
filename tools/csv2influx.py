@@ -21,7 +21,7 @@ def csv2influx(csv_filename, measurement):
             date = row.pop('date')
 
             try:
-                fields = {k:int(v) if v else 0 for k, v in dict(row).items()}
+                fields = {k: int(v) if v else 0 for k, v in dict(row).items()}
             except TypeError:
                 print('Unknown value (not an int) on this row:')
                 print(row)
