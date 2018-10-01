@@ -51,13 +51,22 @@ def print_multi_result(results, label):
             print(', '.join(results[0]['metric'].keys()))
             sys.exit(1)
 
-        headers.append(header)
+        if header not in headers:
+            headers.append(header)
         for value in result['values']:
             data[value[0]][header] = value[1]
 
     print('date,%s' % ','.join(headers))
     for date, values in data.items():
-        print_result(date, ','.join(values.values()))
+        results = ['%s' % date]
+        for header in headers:
+            try:
+                results.append(values[header])
+            except KeyError:
+                # use an empty string rather than 0
+                results.append('')
+                pretty_date = datetime.fromtimestamp(date).strftime('%Y-%m-%d')
+        print(','.join(results))
 
 
 def print_with_labels(results, labels):
