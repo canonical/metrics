@@ -44,7 +44,7 @@ def get_current_download_serials(download_root):
     Given a download root, determine the latest current serial.
 
     This works, specifically, by inspecting
-    <download_root>/<suite>/current/unpacked/build-info.txt for all valid
+    <download_root>/<suite>/current/unpacked/build-info.txt for supported
     releases.
     """
     current_serials = {}
@@ -68,7 +68,14 @@ def get_current_download_serials(download_root):
     return current_serials
 
 
-def _update_stat_entry_item(stat_lvl, serial):
+def update_stat_entry_item(stat_lvl, serial):
+    """
+    Track a simplestream item metrics in the stat_lvl dictionary.
+
+    :param stat_lvl: the stat_entry dict, as per parse_simplestreams_for_images
+    :param serial: item serial string (e.g '20181011.1')
+    :return:
+    """
     stat_lvl['count'] = stat_lvl.get('count', 0) + 1
 
     if 'beta' in serial or 'LATEST' in serial:
@@ -93,16 +100,22 @@ def recursive_defaultdict():
 
 def parse_simplestreams_for_images(images):
     """
-    Use sstream-query to fetch supported image information.
+    Generate metrics dict, describing `images` simplestream items collection.
 
-    For non-AWS clouds, this returns a tuple of
-    ({release: {arch: count_of_images}}, {release: latest_serial}).  For
-    AWS clouds, the first element of the tuple remains the same, but the
-    second is {release: {virt_storage: {latest_serial}}}.
+    :return: a dict that is structured like this:
+    daily.aws.vivid - <stat_entry>
+                  | - [by-machine] = { pv-instance: <stat_entry> }
+                  | - [by-arch] = { amd64: <stat_entry> }
+    where <stat_entry> looks like:
+        {lastest_serial: 20180901, age: 866, count: 1}
     """
     stats = recursive_defaultdict()
 
     for image in images:
+        # simplestreams items are all of images ever published
+        # we create a 3-level deep dict to keep counters and latest_serials
+        # for them, to find out what, and how old are the latest serials
+
         image_type = INDEX_PATH_TO_IMAGE_TYPE[image['index_path']]
         cloudname = image.get('cloudname')
         if not cloudname and image['datatype'] == 'image-downloads':
@@ -116,15 +129,18 @@ def parse_simplestreams_for_images(images):
 
         # base stat entries
         stat_entry = stats[image_type][cloudname][release]
-        _update_stat_entry_item(stat_entry, serial)
+        update_stat_entry_item(stat_entry, serial)
 
-        # serials also make sense per machine type
+        # Some metrics we only track per machine type or arch,
+        # that is why they are kept as separate <stat_item> records
+
+        # serials make sense per machine type
         machine_lvl = stat_entry['by-machine'][machine_type]
-        _update_stat_entry_item(machine_lvl, serial)
+        update_stat_entry_item(machine_lvl, serial)
 
         # counts are tracked per arch, w/ no regard for machine type
         arch_lvl = stat_entry['by-arch'][arch]
-        _update_stat_entry_item(arch_lvl, serial)
+        update_stat_entry_item(arch_lvl, serial)
 
     return stats
 
@@ -155,49 +171,50 @@ def _emit_metric(measurement, value, **kwargs):
     }
 
 
-def set_metrics_from_stats(metrics, stats):
+def gen_metrics_from_stats(stats):
     """
-    Generate metrics from the output of parse_simplestreams_for_images.
+    Generate influxdb-metric entries from the metrics dict.
 
-    <stat_entry> looks like: {lastest_serial: 20180901, age: 866, count: 1}
-    stats shoud look like:
-    daily.aws.vivid - <stat_entry>
-                  | - [by-machine] = { pv-instance: <stat_entry> }
-                  | - [by-arch] = { amd64: <stat_entry> }
-
-    :param stats: a dict as described above
-    :param metrics: a list of influxdb-shaped metric dicts
+    :param stats: a dict as returned by parse_simplestreams_for_images
     """
     for image_type, clouds in stats.items():
         for cloud_name, releases in clouds.items():
             for release, stat_entry in releases.items():
-                _set_metrics_from_stat_item(metrics,
-                                            (image_type, cloud_name, release),
-                                            stat_entry)
+                yield from gen_metrics_from_stat_item(
+                    image_type, cloud_name, release, stat_entry)
 
 
-def _set_metrics_from_stat_item(metrics, path, stat_entry):
-    image_type, cloud_name, release = path
+def gen_metrics_from_stat_item(image_type, cloud_name, release, stat_entry):
+    """
+    Generate <image_type>.<cloud_name>.<release> stats record.
 
+    :param image_type: daily/release
+    :param cloud_name: aws/azure/download, etc.
+    :param release: artful/bionic, etc.
+    :param stat_entry: a release-level accumulated <stat_entry>,
+    that has 'by-machine' and 'by-arch' records, containing <stat_entry> under
+    respective keys.
+    :return: InfluxDB metric generator
+    """
     tags = dict(image_type=image_type, cloud=cloud_name, release=release)
 
     for arch, stat in stat_entry['by-arch'].items():
-        metrics.append(_emit_metric(
+        yield _emit_metric(
             'published',
             stat['count'],
             arch=arch,
             **tags
-        ))
+        )
 
     # Note: some machine-types can fail to publish, the oldest machine type
     # should be reported to help catch those occurences.
     oldest_machine = max(stat_entry['by-machine'].values(),
                          key=lambda i: i.get('age', 0))
     if 'latest_serial' in oldest_machine:
-        metrics.append(_emit_metric(
-            'current_serial', oldest_machine['latest_serial'], **tags))
-        metrics.append(_emit_metric(
-            'current_serial_age', oldest_machine['age'], **tags))
+        yield _emit_metric(
+            'current_serial', oldest_machine['latest_serial'], **tags)
+        yield _emit_metric(
+            'current_serial_age', oldest_machine['age'], **tags)
 
     if len(stat_entry['by-machine']) > 1:
         for machine_type, stat in stat_entry['by-machine'].items():
@@ -206,28 +223,30 @@ def _set_metrics_from_stat_item(metrics, path, stat_entry):
 
             tags['cloud'] = cloud_name + ':' + machine_type
 
-            metrics.append(_emit_metric(
-                'current_serial', stat['latest_serial'], **tags))
-            metrics.append(_emit_metric(
-                'current_serial_age', stat['age'], **tags))
+            yield _emit_metric('current_serial', stat['latest_serial'], **tags)
+            yield _emit_metric('current_serial_age', stat['age'], **tags)
 
 
 def collect(dryrun=False):
     """Push published cloud image counts."""
     metrics = []
 
-    interesting_images = _get_interesting_images()
+    interesting_images = filter_interesting_images()
     aws_clouds = ifilter('cloudname ~ ^aws')
+    not_aws_clouds = -aws_clouds
 
     print('Finding serials for non-aws clouds...')
-    _collect_metrics(-aws_clouds, interesting_images, metrics)
+    metrics += collect_metrics(not_aws_clouds, interesting_images)
 
     print('Finding serials for AWS clouds...')
+    # These virt/storage combinations were present in early xenial development
+    # dailies, but were dropped before release.
     aws_deprecated = (ifilter('release = xenial') &
                       ifilter('virt ~ ^(hvm|pv)$') &
                       ifilter('root_store ~ ^(io1|ebs)$'))
 
-    _collect_metrics(aws_clouds, interesting_images & -aws_deprecated, metrics)
+    metrics += collect_metrics(aws_clouds,
+                               interesting_images & -aws_deprecated)
 
     print('Finding serials for docker-core...')
     docker_core_serials = get_current_download_serials(DOCKER_CORE_ROOT)
@@ -237,8 +256,10 @@ def collect(dryrun=False):
             release, serial, age))
 
         tags = dict(image_type='daily', cloud='docker-core', release=release)
-        metrics.append(_emit_metric('current_serial', serial, **tags))
-        metrics.append(_emit_metric('current_serial_age', age, **tags))
+        metrics += [
+            _emit_metric('current_serial', serial, **tags),
+            _emit_metric('current_serial_age', age, **tags)
+        ]
 
     if not dryrun:
         print('Pushing data...')
@@ -248,15 +269,28 @@ def collect(dryrun=False):
         pprint.pprint(metrics)
 
 
-def _collect_metrics(stream_filter, item_filter, metrics_target):
-    print('streams', stream_filter)
-    print('items', item_filter)
+def collect_metrics(stream_filter, item_filter):
+    """
+    Generate metrics for images in ubuntu simplestreams.
+
+    Use UbuntuCloudImages to collect counts, latest_serial and it's age for
+    every permutation of image type, cloud name, release, arch and machine type
+    and create metric events for InfluxDB.
+
+    :param stream_filter: a SimpleStreams filter for stream feeds
+    :param item_filter: a SimpleStreams filter for image items
+    """
     images = UbuntuCloudImages().get_product_items(stream_filter, item_filter)
     stats = parse_simplestreams_for_images(images)
-    set_metrics_from_stats(metrics_target, stats)
+    return list(gen_metrics_from_stats(stats))
 
 
-def _get_interesting_images():
+def filter_interesting_images():
+    """
+    Produce a nested filter that considers the clouds that are part of KPIs.
+
+    :return: SimpleStreams filter object
+    """
     release_clouds = ifilter('index_path = releases') & ifilter(
         'content_id ~ ({})$'.format('|'.join(RELEASE_CLOUD_NAMES)))
 
