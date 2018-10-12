@@ -189,11 +189,15 @@ def _set_metrics_from_stat_item(metrics, path, stat_entry):
             **tags
         ))
 
-    if 'latest_serial' in stat_entry:
+    # Note: some machine-types can fail to publish, the oldest machine type
+    # should be reported to help catch those occurences.
+    oldest_machine = max(stat_entry['by-machine'].values(),
+                         key=lambda i: i.get('age', 0))
+    if 'latest_serial' in oldest_machine:
         metrics.append(_emit_metric(
-            'current_serial', stat_entry['latest_serial'], **tags))
+            'current_serial', oldest_machine['latest_serial'], **tags))
         metrics.append(_emit_metric(
-            'current_serial_age', stat_entry['age'], **tags))
+            'current_serial_age', oldest_machine['age'], **tags))
 
     if len(stat_entry['by-machine']) > 1:
         for machine_type, stat in stat_entry['by-machine'].items():
