@@ -227,6 +227,40 @@ def gen_metrics_from_stat_item(image_type, cloud_name, release, stat_entry):
             yield _emit_metric('current_serial_age', stat['age'], **tags)
 
 
+def collect_metrics(stream_filter, item_filter):
+    """
+    Generate metrics for images in ubuntu simplestreams.
+
+    Use UbuntuCloudImages to collect counts, latest_serial and it's age for
+    every permutation of image type, cloud name, release, arch and machine type
+    and create metric events for InfluxDB.
+
+    :param stream_filter: a SimpleStreams filter for stream feeds
+    :param item_filter: a SimpleStreams filter for image items
+    """
+    images = UbuntuCloudImages().get_product_items(stream_filter, item_filter)
+    stats = parse_simplestreams_for_images(images)
+    return list(gen_metrics_from_stats(stats))
+
+
+def filter_interesting_images():
+    """
+    Produce a nested filter that considers the clouds that are part of KPIs.
+
+    :return: SimpleStreams filter object
+    """
+    release_clouds = ifilter('index_path = releases') & ifilter(
+        'content_id ~ ({})$'.format('|'.join(RELEASE_CLOUD_NAMES)))
+
+    daily_clouds = ifilter('index_path = daily') & ifilter(
+        'content_id ~ ({})$'.format('|'.join(DAILY_CLOUD_NAMES)))
+
+    interesting_images = (release_clouds | daily_clouds) & \
+                         (ifilter('cloudname !=') |
+                          ifilter('datatype = image-downloads'))
+    return interesting_images
+
+
 def collect(dryrun=False):
     """Push published cloud image counts."""
     metrics = []
@@ -267,40 +301,6 @@ def collect(dryrun=False):
     else:
         import pprint
         pprint.pprint(metrics)
-
-
-def collect_metrics(stream_filter, item_filter):
-    """
-    Generate metrics for images in ubuntu simplestreams.
-
-    Use UbuntuCloudImages to collect counts, latest_serial and it's age for
-    every permutation of image type, cloud name, release, arch and machine type
-    and create metric events for InfluxDB.
-
-    :param stream_filter: a SimpleStreams filter for stream feeds
-    :param item_filter: a SimpleStreams filter for image items
-    """
-    images = UbuntuCloudImages().get_product_items(stream_filter, item_filter)
-    stats = parse_simplestreams_for_images(images)
-    return list(gen_metrics_from_stats(stats))
-
-
-def filter_interesting_images():
-    """
-    Produce a nested filter that considers the clouds that are part of KPIs.
-
-    :return: SimpleStreams filter object
-    """
-    release_clouds = ifilter('index_path = releases') & ifilter(
-        'content_id ~ ({})$'.format('|'.join(RELEASE_CLOUD_NAMES)))
-
-    daily_clouds = ifilter('index_path = daily') & ifilter(
-        'content_id ~ ({})$'.format('|'.join(DAILY_CLOUD_NAMES)))
-
-    interesting_images = (release_clouds | daily_clouds) & \
-                         (ifilter('cloudname !=') |
-                          ifilter('datatype = image-downloads'))
-    return interesting_images
 
 
 if __name__ == '__main__':
