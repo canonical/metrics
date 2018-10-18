@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Submit metrics for rls-* tagged bugs.
 
-Copyright 2017 Canonical Ltd.
+Copyright 2017-2018 Canonical Ltd.
 Daniel Watkins <daniel.watkins@canonical.com>
 """
 import argparse
@@ -9,7 +9,6 @@ import re
 import sys
 
 import requests
-from prometheus_client import CollectorRegistry, Gauge
 
 from metrics.helpers import util
 
@@ -49,15 +48,20 @@ def collect(dryrun=False):
     print(counts)
     if not dryrun:
         print('Pushing data...')
-        registry = CollectorRegistry()
-        gauge = Gauge(
-            'distro_rls_bug_tasks', '', ['tag', 'team_name'],
-            registry=registry)
+        data = []
         for tag in TAGS:
             for team_name in counts[tag]:
-                gauge.labels(tag, team_name).set(counts[tag][team_name])
-
-        util.push2gateway('distro_rls_bug_tasks', registry)
+                data.append({
+                    'measurement': 'distro_rls_bug_tasks',
+                    'fields': {
+                        'count': int(counts[tag][team_name])
+                    },
+                    'tags': {
+                        'team_name': team_name,
+                        'tag': tag
+                    }
+                    })
+        util.influxdb_insert(data)
 
 
 if __name__ == '__main__':
