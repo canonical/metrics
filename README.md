@@ -5,6 +5,13 @@
 Scripts used to generate metrics for the Server and Foundations Teams.
 
 ## How to Run
+
+### Dependencies
+```sudo apt-get install python3-distro-info```
+If ran in a virtualenv, --system-site-packages should be enabled
+
+
+### Invocation
 Scripts should be run as follows:
 
 ```

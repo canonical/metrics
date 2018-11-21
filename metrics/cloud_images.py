@@ -6,34 +6,30 @@ Daniel Watkins <daniel.watkins@canonical.com>
 """
 import argparse
 import datetime
-import json
 import os.path
 import re
-import subprocess
 from collections import defaultdict
-
 import distro_info  # pylint: disable=wrong-import-order
 import requests
 
+from metrics.helpers.sstreams import UbuntuCloudImages, ifilter
 from metrics.helpers import util
 
 
 DAILY_CLOUD_NAMES = ['azure', 'aws', 'download', 'gce']
 RELEASE_CLOUD_NAMES = DAILY_CLOUD_NAMES + [
     'aws-cn', 'aws-govcloud', 'joyent', 'rax']
-CLOUD_NAMES = {'daily': DAILY_CLOUD_NAMES, 'release': RELEASE_CLOUD_NAMES}
-DAILY_URL_PATTERN = ('http://cloud-images.ubuntu.com/daily/streams/v1'
-                     '/com.ubuntu.cloud:daily:{cloud_name}.json')
-RELEASE_URL_PATTERN = ('http://cloud-images.ubuntu.com/releases/streams/v1'
-                       '/com.ubuntu.cloud:released:{cloud_name}.json')
-TODAY = datetime.date.today()
-URL_PATTERNS = {'daily': DAILY_URL_PATTERN, 'release': RELEASE_URL_PATTERN}
-DOCKER_CORE_ROOT = 'https://partner-images.canonical.com/core'
-AWS_VIRT_STORE_SKIPS = {
-    # These virt/storage combinations were present in early xenial development
-    # dailies, but were dropped before release.
-    'xenial': ['hvm-ebs', 'hvm-io1', 'pv-ebs', 'pv-io1'],
+
+MACHINE_TYPE_FIELDS = ['virt', 'root_store']
+INDEX_PATH_TO_IMAGE_TYPE = {
+    'releases': 'release',
+    'minimal/releases': 'release',
+    'daily': 'daily',
+    'minimal/daily': 'daily'
 }
+
+TODAY = datetime.date.today()
+DOCKER_CORE_ROOT = 'https://partner-images.canonical.com/core'
 
 
 def _parse_serial_date_int_from_string(serial_str):
@@ -43,7 +39,118 @@ def _parse_serial_date_int_from_string(serial_str):
     return int(match.group(0))
 
 
-def _gen_influx_metric(measurement, value, **kwargs):
+def get_current_download_serials(download_root):
+    """
+    Given a download root, determine the latest current serial.
+
+    This works, specifically, by inspecting
+    <download_root>/<suite>/current/unpacked/build-info.txt for supported
+    releases.
+    """
+    current_serials = {}
+    for release in distro_info.UbuntuDistroInfo().supported():
+        url = os.path.join(
+            download_root, release, 'current', 'unpacked', 'build-info.txt')
+        build_info_response = requests.get(url)
+        if not build_info_response.ok:
+            # If the release doesn't have images, we should ignore it
+            continue
+        for line in build_info_response.text.splitlines():
+            if line.lower().startswith('serial='):
+                serial = _parse_serial_date_int_from_string(
+                    line.split('=')[1])
+                break
+        else:
+            # If the build-info.txt doesn't contain a serial, we should ignore
+            # it
+            continue
+        current_serials[release] = serial
+    return current_serials
+
+
+def update_stat_entry_item(stat_lvl, serial):
+    """
+    Track a simplestream item metrics in the stat_lvl dictionary.
+
+    :param stat_lvl: the stat_entry dict, as per parse_simplestreams_for_images
+    :param serial: item serial string (e.g '20181011.1')
+    :return:
+    """
+    stat_lvl['count'] = stat_lvl.get('count', 0) + 1
+
+    if 'beta' in serial or 'LATEST' in serial:
+        return
+
+    serial = _parse_serial_date_int_from_string(serial)
+
+    current_serial = stat_lvl.get('latest_serial')
+    if current_serial is None or serial > current_serial:
+        stat_lvl['latest_serial'] = serial
+        stat_lvl['age'] = _determine_serial_age(serial)
+
+
+def recursive_defaultdict():
+    """
+    Produce a recursive defaultdict.
+
+    :return: defaultdict of defaultdicts
+    """
+    return defaultdict(recursive_defaultdict)
+
+
+def parse_simplestreams_for_images(images):
+    """
+    Generate metrics dict, describing `images` simplestream items collection.
+
+    :return: a dict that is structured like this:
+    daily.aws.vivid - <stat_entry>
+                  | - [by-machine] = { pv-instance: <stat_entry> }
+                  | - [by-arch] = { amd64: <stat_entry> }
+    where <stat_entry> looks like:
+        {lastest_serial: 20180901, age: 866, count: 1}
+    """
+    stats = recursive_defaultdict()
+
+    for image in images:
+        # simplestreams items are all of images ever published
+        # we create a 3-level deep dict to keep counters and latest_serials
+        # for them, to find out what, and how old are the latest serials
+
+        image_type = INDEX_PATH_TO_IMAGE_TYPE[image['index_path']]
+        cloudname = image.get('cloudname')
+        if not cloudname and image['datatype'] == 'image-downloads':
+            cloudname = 'download'
+
+        release = image.get('release') or image.get('version', 'unknown')
+        serial = image.get('version_name', 'LATEST')
+        arch = image.get('arch', 'noarch')
+        machine_type = '-'.join([image[f] for f in MACHINE_TYPE_FIELDS
+                                 if f in image])
+
+        # base stat entries
+        stat_entry = stats[image_type][cloudname][release]
+        update_stat_entry_item(stat_entry, serial)
+
+        # Some metrics we only track per machine type or arch,
+        # that is why they are kept as separate <stat_item> records
+
+        # serials make sense per machine type
+        machine_lvl = stat_entry['by-machine'][machine_type]
+        update_stat_entry_item(machine_lvl, serial)
+
+        # counts are tracked per arch, w/ no regard for machine type
+        arch_lvl = stat_entry['by-arch'][arch]
+        update_stat_entry_item(arch_lvl, serial)
+
+    return stats
+
+
+def _determine_serial_age(serial):
+    serial_datetime = datetime.datetime.strptime(str(serial), '%Y%m%d')
+    return (TODAY - serial_datetime.date()).days
+
+
+def _emit_metric(measurement, value, **kwargs):
     """
     Generate InfluxDB-shaped datapoint dictionary.
 
@@ -64,156 +171,116 @@ def _gen_influx_metric(measurement, value, **kwargs):
     }
 
 
-def get_current_download_serials(download_root):
+def gen_metrics_from_stats(stats):
     """
-    Given a download root, determine the latest current serial.
+    Generate influxdb-metric entries from the metrics dict.
 
-    This works, specifically, by inspecting
-    <download_root>/<suite>/current/unpacked/build-info.txt for all valid
-    releases.
+    :param stats: a dict as returned by parse_simplestreams_for_images
     """
-    current_serials = {}
-    for release in distro_info.UbuntuDistroInfo().all:
-        url = os.path.join(
-            download_root, release, 'current', 'unpacked', 'build-info.txt')
-        build_info_response = requests.get(url)
-        if not build_info_response.ok:
-            # If the release doesn't have images, we should ignore it
-            continue
-        for line in build_info_response.text.splitlines():
-            if line.lower().startswith('serial='):
-                serial = _parse_serial_date_int_from_string(
-                    line.split('=')[1])
-                break
-        else:
-            # If the build-info.txt doesn't contain a serial, we should ignore
-            # it
-            continue
-        current_serials[release] = serial
-    return current_serials
+    for image_type, clouds in stats.items():
+        for cloud_name, releases in clouds.items():
+            for release, stat_entry in releases.items():
+                yield from gen_metrics_from_stat_item(
+                    image_type, cloud_name, release, stat_entry)
 
 
-def parse_simplestreams_for_images(cloud_name, image_type):
+def gen_metrics_from_stat_item(image_type, cloud_name, release, stat_entry):
     """
-    Use sstream-query to fetch supported image information.
+    Generate <image_type>.<cloud_name>.<release> stats record.
 
-    For non-AWS clouds, this returns a tuple of
-    ({release: {arch: count_of_images}}, {release: latest_serial}).  For
-    AWS clouds, the first element of the tuple remains the same, but the
-    second is {release: {virt_storage: {latest_serial}}}.
+    :param image_type: daily/release
+    :param cloud_name: aws/azure/download, etc.
+    :param release: artful/bionic, etc.
+    :param stat_entry: a release-level accumulated <stat_entry>,
+    that has 'by-machine' and 'by-arch' records, containing <stat_entry> under
+    respective keys.
+    :return: InfluxDB metric generator
     """
-    url = URL_PATTERNS[image_type].format(cloud_name=cloud_name)
-    output = subprocess.check_output(['sstream-query', '--json', url])
-    image_counts = defaultdict(lambda: defaultdict(int))
-    if cloud_name.startswith('aws'):
-        # For AWS, we capture latest serial by virt/root store
-        latest_serials = defaultdict(lambda: defaultdict(int))
-    else:
-        latest_serials = defaultdict(int)
-    for product_dict in json.loads(output.decode('utf-8')):
-        release = product_dict['release']
-        image_counts[release][product_dict['arch']] += 1
-        serial = product_dict['version_name']
-        if 'beta' in serial or 'LATEST' in serial:
-            continue
-        serial = _parse_serial_date_int_from_string(serial)
-        if cloud_name.startswith('aws'):
-            virt_storage = '-'.join(
-                [product_dict['virt'], product_dict['root_store']])
-            if serial > latest_serials[release][virt_storage]:
-                latest_serials[release][virt_storage] = serial
-        else:
-            if serial > latest_serials[release]:
-                latest_serials[release] = serial
-    return image_counts, latest_serials
+    tags = dict(image_type=image_type, cloud=cloud_name, release=release)
+
+    for arch, stat in stat_entry['by-arch'].items():
+        yield _emit_metric(
+            'published',
+            stat['count'],
+            arch=arch,
+            **tags
+        )
+
+    # Note: some machine-types can fail to publish, the oldest machine type
+    # should be reported to help catch those occurences.
+    oldest_machine = max(stat_entry['by-machine'].values(),
+                         key=lambda i: i.get('age', 0))
+    if 'latest_serial' in oldest_machine:
+        yield _emit_metric(
+            'current_serial', oldest_machine['latest_serial'], **tags)
+        yield _emit_metric(
+            'current_serial_age', oldest_machine['age'], **tags)
+
+    if len(stat_entry['by-machine']) > 1:
+        for machine_type, stat in stat_entry['by-machine'].items():
+            if 'latest_serial' not in stat:
+                continue
+
+            tags['cloud'] = cloud_name + ':' + machine_type
+
+            yield _emit_metric('current_serial', stat['latest_serial'], **tags)
+            yield _emit_metric('current_serial_age', stat['age'], **tags)
 
 
-def _determine_serial_age(serial):
-    serial_datetime = datetime.datetime.strptime(str(serial), '%Y%m%d')
-    return (TODAY - serial_datetime.date()).days
-
-
-def do_aws_specific_collection(cloud_name, image_type, metrics_collection):
+def collect_metrics(stream_filter, item_filter):
     """
-    Report AWS-specific metrics and return generic cloud data.
+    Generate metrics for images in ubuntu simplestreams.
 
-    This returns the non-AWS-specific version of
-    parse_simplestreams_for_images' return tuples.
+    Use UbuntuCloudImages to collect counts, latest_serial and it's age for
+    every permutation of image type, cloud name, release, arch and machine type
+    and create metric events for InfluxDB.
+
+    :param stream_filter: a SimpleStreams filter for stream feeds
+    :param item_filter: a SimpleStreams filter for image items
     """
-    image_counts, aws_latest_serials = parse_simplestreams_for_images(
-        cloud_name, image_type)
-    latest_serials = {}
-    for release in aws_latest_serials:
-        # Some virt/storage combinations should be ignored, so we filter those
-        # out before we do anything else
-        aws_latest_serials[release] = {
-            k: v for k, v in aws_latest_serials[release].items()
-            if k not in AWS_VIRT_STORE_SKIPS.get(release, [])}
-        # aws_latest_serials contains an entry for each virt/storage combo; we
-        # want to use the oldest as the main cloud entry
-        latest_serials[release] = min(aws_latest_serials[release].values())
-        for virt_store in aws_latest_serials[release]:
-            aws_cloud_name = '{}:{}'.format(cloud_name, virt_store)
-            serial = aws_latest_serials[release][virt_store]
-            age = _determine_serial_age(serial)
+    images = UbuntuCloudImages().get_product_items(stream_filter, item_filter)
+    stats = parse_simplestreams_for_images(images)
+    return list(gen_metrics_from_stats(stats))
 
-            tags = dict(image_type=image_type, cloud=aws_cloud_name,
-                        release=release)
-            metrics_collection.append(
-                _gen_influx_metric('current_serial', serial, **tags))
-            metrics_collection.append(
-                _gen_influx_metric('current_serial_age', age, **tags))
 
-    return image_counts, latest_serials
+def filter_interesting_images():
+    """
+    Produce a nested filter that considers the clouds that are part of KPIs.
+
+    :return: SimpleStreams filter object
+    """
+    release_clouds = ifilter('index_path = releases') & ifilter(
+        'content_id ~ ({})$'.format('|'.join(RELEASE_CLOUD_NAMES)))
+
+    daily_clouds = ifilter('index_path = daily') & ifilter(
+        'content_id ~ ({})$'.format('|'.join(DAILY_CLOUD_NAMES)))
+
+    interesting_images = (release_clouds | daily_clouds) & \
+                         (ifilter('cloudname !=') |
+                          ifilter('datatype = image-downloads'))
+    return interesting_images
 
 
 def collect(dryrun=False):
     """Push published cloud image counts."""
-    metrics_collection = []
+    metrics = []
 
-    for image_type in ['daily', 'release']:
-        for cloud_name in CLOUD_NAMES[image_type]:
-            print('Counting {} images for {}...'.format(image_type,
-                                                        cloud_name))
-            if 'aws' in cloud_name:
-                image_counts, latest_serials = do_aws_specific_collection(
-                    cloud_name, image_type, metrics_collection)
-            else:
-                image_counts, latest_serials = parse_simplestreams_for_images(
-                    cloud_name, image_type)
-            for release in image_counts:
-                for arch in image_counts[release]:
-                    count = image_counts[release][arch]
-                    print('Found {} {} images for {} {} {}'.format(
-                        count, image_type, cloud_name, release, arch))
+    interesting_images = filter_interesting_images()
+    aws_clouds = ifilter('cloudname ~ ^aws')
+    not_aws_clouds = -aws_clouds
 
-                    metrics_collection.append(_gen_influx_metric(
-                        'published',
-                        count,
-                        image_type=image_type,
-                        cloud=cloud_name,
-                        release=release,
-                        arch=arch
-                    ))
+    print('Finding serials for non-aws clouds...')
+    metrics += collect_metrics(not_aws_clouds, interesting_images)
 
-            for release in latest_serials:
-                serial = latest_serials[release]
-                age = _determine_serial_age(serial)
+    print('Finding serials for AWS clouds...')
+    # These virt/storage combinations were present in early xenial development
+    # dailies, but were dropped before release.
+    aws_deprecated = (ifilter('release = xenial') &
+                      ifilter('virt ~ ^(hvm|pv)$') &
+                      ifilter('root_store ~ ^(io1|ebs)$'))
 
-                tags = dict(image_type=image_type, cloud=cloud_name,
-                            release=release)
-                metrics_collection.append(
-                    _gen_influx_metric('current_serial', serial, **tags))
-                metrics_collection.append(
-                    _gen_influx_metric('current_serial_age', age, **tags))
-
-            if not dryrun:
-                print('Pushing data...')
-                util.influxdb_insert(metrics_collection)
-            else:
-                import pprint
-                pprint.pprint(metrics_collection)
-            metrics_collection = []
+    metrics += collect_metrics(aws_clouds,
+                               interesting_images & -aws_deprecated)
 
     print('Finding serials for docker-core...')
     docker_core_serials = get_current_download_serials(DOCKER_CORE_ROOT)
@@ -223,21 +290,22 @@ def collect(dryrun=False):
             release, serial, age))
 
         tags = dict(image_type='daily', cloud='docker-core', release=release)
-        metrics_collection.append(
-            _gen_influx_metric('current_serial', serial, **tags))
-        metrics_collection.append(
-            _gen_influx_metric('current_serial_age', age, **tags))
+        metrics += [
+            _emit_metric('current_serial', serial, **tags),
+            _emit_metric('current_serial_age', age, **tags)
+        ]
 
     if not dryrun:
         print('Pushing data...')
-        util.influxdb_insert(metrics_collection)
+        util.influxdb_insert(metrics)
     else:
         import pprint
-        pprint.pprint(metrics_collection)
+        pprint.pprint(metrics)
 
 
 if __name__ == '__main__':
     PARSER = argparse.ArgumentParser()
     PARSER.add_argument('--dryrun', action='store_true')
     ARGS = PARSER.parse_args()
+
     collect(ARGS.dryrun)
