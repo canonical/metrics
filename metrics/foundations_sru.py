@@ -18,7 +18,6 @@ except ImportError as exception:
     class HTMLParseError(Exception):
         """Dummy exception."""
 
-        pass
 
 from metrics.helpers import lp
 from metrics.helpers import util
