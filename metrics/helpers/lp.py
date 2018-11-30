@@ -125,4 +125,4 @@ def get_team_daily_triage_count(team, distro, blacklist=None):
 
 def is_git_repo(pkg):
     """Determine if package has a git repo or not."""
-    return True if LP.git_repositories.getByPath(path=pkg) else False
+    return bool(LP.git_repositories.getByPath(path=pkg))
