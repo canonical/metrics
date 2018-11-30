@@ -23,9 +23,9 @@ RELEASE_CLOUD_NAMES = DAILY_CLOUD_NAMES + [
 MACHINE_TYPE_FIELDS = ['virt', 'root_store']
 INDEX_PATH_TO_IMAGE_TYPE = {
     'releases': 'release',
-    'minimal/releases': 'release',
+    'minimal/releases': 'release-minimal',
     'daily': 'daily',
-    'minimal/daily': 'daily'
+    'minimal/daily': 'daily-minimal'
 }
 
 TODAY = datetime.date.today()
@@ -249,10 +249,10 @@ def filter_interesting_images():
 
     :return: SimpleStreams filter object
     """
-    release_clouds = ifilter('index_path = releases') & ifilter(
+    release_clouds = ifilter('index_path ~ releases') & ifilter(
         'content_id ~ ({})$'.format('|'.join(RELEASE_CLOUD_NAMES)))
 
-    daily_clouds = ifilter('index_path = daily') & ifilter(
+    daily_clouds = ifilter('index_path ~ daily') & ifilter(
         'content_id ~ ({})$'.format('|'.join(DAILY_CLOUD_NAMES)))
 
     interesting_images = (release_clouds | daily_clouds) & \
