@@ -10,14 +10,17 @@ from metrics.helpers import lp
 from metrics.helpers import util
 
 
-def collect(pkg, repo='', dryrun=False):
+def collect(pkg, repo='', dryrun=False, pkg_name=None):
     """Submit data to Push Gateway."""
     print(pkg)
 
+    if pkg_name is None:
+        pkg_name = pkg
+
     project_new = lp.get_bug_count(pkg, status='New')
     project_total = lp.get_bug_count(pkg)
-    ubuntu_new = lp.get_ubuntu_bug_count(pkg, status='New')
-    ubuntu_total = lp.get_ubuntu_bug_count(pkg)
+    ubuntu_new = lp.get_ubuntu_bug_count(pkg_name, status='New')
+    ubuntu_total = lp.get_ubuntu_bug_count(pkg_name)
     reviews = lp.get_active_review_count(pkg)
 
     print('%s total bugs (%s new)' % (project_total, project_new))
@@ -61,5 +64,8 @@ if __name__ == '__main__':
     PARSER.add_argument('--repo',
                         help=('repo url (e.g. lp:curtin or '
                               'https://git.launchpad.net/cloud-init'))
+    PARSER.add_argument('--package-name', default=None,
+                        help='package name, only needed if different to'
+                             ' project name')
     ARGS = PARSER.parse_args()
-    collect(ARGS.name, ARGS.repo, ARGS.dryrun)
+    collect(ARGS.name, ARGS.repo, ARGS.dryrun, ARGS.package_name)
