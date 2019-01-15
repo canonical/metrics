@@ -10,15 +10,18 @@ from metrics.helpers import lp
 from metrics.helpers import util
 
 
-def collect(pkg, repo='', dryrun=False):
+def collect(project, repo='', dryrun=False, pkg_name=None):
     """Submit data to Push Gateway."""
-    print(pkg)
+    print(project)
 
-    project_new = lp.get_bug_count(pkg, status='New')
-    project_total = lp.get_bug_count(pkg)
-    ubuntu_new = lp.get_ubuntu_bug_count(pkg, status='New')
-    ubuntu_total = lp.get_ubuntu_bug_count(pkg)
-    reviews = lp.get_active_review_count(pkg)
+    if pkg_name is None:
+        pkg_name = project
+
+    project_new = lp.get_bug_count(project, status='New')
+    project_total = lp.get_bug_count(project)
+    ubuntu_new = lp.get_ubuntu_bug_count(pkg_name, status='New')
+    ubuntu_total = lp.get_ubuntu_bug_count(pkg_name)
+    reviews = lp.get_active_review_count(project)
 
     print('%s total bugs (%s new)' % (project_total, project_new))
     print('%s pkg bugs (%s new)' % (ubuntu_total, ubuntu_new))
@@ -33,7 +36,7 @@ def collect(pkg, repo='', dryrun=False):
 
     if not dryrun:
         print('Pushing data...')
-        pkg_str = pkg.replace('-', '') if '-' in pkg else pkg
+        pkg_str = project.replace('-', '')
 
         data = [
             {
@@ -61,5 +64,8 @@ if __name__ == '__main__':
     PARSER.add_argument('--repo',
                         help=('repo url (e.g. lp:curtin or '
                               'https://git.launchpad.net/cloud-init'))
+    PARSER.add_argument('--package-name', default=None,
+                        help='package name, only needed if different to'
+                             ' project name')
     ARGS = PARSER.parse_args()
-    collect(ARGS.name, ARGS.repo, ARGS.dryrun)
+    collect(ARGS.name, ARGS.repo, ARGS.dryrun, ARGS.package_name)
