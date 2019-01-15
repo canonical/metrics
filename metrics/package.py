@@ -36,7 +36,7 @@ def collect(project, repo='', dryrun=False, pkg_name=None):
 
     if not dryrun:
         print('Pushing data...')
-        pkg_str = project.replace('-', '') if '-' in project else project
+        pkg_str = project.replace('-', '')
 
         data = [
             {
