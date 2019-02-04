@@ -18,7 +18,7 @@ def get_proposed_migration_queue(team):
         code = req.getcode()
         if code != 200:
             logging.error('URL %s failed with code %u', req.geturl(), code)
-            return
+            return {}
         yamldata = StringIO(req.read().decode('UTF-8'))
     yaml_handle = yaml.safe_load(yamldata)
     valid = 0
