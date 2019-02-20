@@ -34,7 +34,7 @@ def collect(dryrun=False):
 
         data = [
             {
-                'measurement': 'mir_team_bugs',
+                'measurement': 'distro_mir_team_bugs',
                 'fields': {
                     'unassigned': unassigned,
                     'incomplete': incomplete,
