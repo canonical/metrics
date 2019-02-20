@@ -7,7 +7,7 @@ Scripts used to generate metrics for the Server and Foundations Teams.
 ## How to Run
 
 ### Dependencies
-```sudo apt-get install python3-distro-info```
+```sudo apt-get install python3-distro-info python3-influxdb python3-prometheus-client```
 If ran in a virtualenv, --system-site-packages should be enabled
 
 
@@ -78,6 +78,7 @@ To test your metrics you should setup a local Influx DB server. It is available 
 
 ```
 juju deploy cs:influxdb
+juju expose influxdb
 ```
 
 You'll need to create a database in Influx DB to which the scripts can write data.
