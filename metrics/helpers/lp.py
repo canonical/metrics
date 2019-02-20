@@ -123,6 +123,57 @@ def get_team_daily_triage_count(team, distro, blacklist=None):
     return len(results)
 
 
+def get_team_unassigned_bugs(team, distro):
+    """
+    Report count of new unassigned bugs for Launchpad team on a distro.
+
+    List the number of bugs that are New and unassigned for a particular
+    team subscribed to the bugs.
+    """
+    lp_distro = LP.distributions[distro]
+    lp_team = LP.people[team]
+    return len(lp_distro.searchTasks(bug_subscriber=lp_team, assignee=None,
+                                     status='New'))
+
+
+def get_team_incomplete_bugs(team, distro):
+    """Report count of incomplete bugs for Launchpad team on a distro."""
+    lp_distro = LP.distributions[distro]
+    lp_team = LP.people[team]
+    return len(lp_distro.searchTasks(bug_subscriber=lp_team,
+                                     status='Incomplete'))
+
+
+def get_mirs_in_review():
+    """
+    Report count of MIRs in active review.
+
+    Open, Triaged or Confirmed (so not yet approved) bug would be assumed
+    to be "in active review".
+    """
+    lp_distro = LP.distributions['Ubuntu']
+    lp_team = LP.people['ubuntu-mir']
+    return len(lp_distro.searchTasks(bug_subscriber=lp_team,
+                                     status=['Triaged', 'Confirmed']))
+
+
+def get_mirs_in_security_review():
+    """Report count of open, assigned to Security bugs."""
+    lp_distro = LP.distributions['Ubuntu']
+    lp_team = LP.people['ubuntu-mir']
+    assignee = LP.people['ubuntu-security']
+    return len(lp_distro.searchTasks(bug_subscriber=lp_team,
+                                     assignee=assignee))
+
+
+def get_approved_mirs():
+    """Report count of Fix Committed (pending AA review) MIRs."""
+    lp_distro = LP.distributions['Ubuntu']
+    lp_team = LP.people['ubuntu-mir']
+    return len(lp_distro.searchTasks(bug_subscriber=lp_team,
+                                     status='Fix Committed'))
+
+
 def is_git_repo(pkg):
     """Determine if package has a git repo or not."""
     return bool(LP.git_repositories.getByPath(path=pkg))
