@@ -78,6 +78,7 @@ To test your metrics you should setup a local Influx DB server. It is available 
 
 ```
 juju deploy cs:influxdb
+juju expose influxdb
 ```
 
 You'll need to create a database in Influx DB to which the scripts can write data.
@@ -88,7 +89,11 @@ influx
 CREATE DATABASE foundations
 ```
 
-To be able to run metrics you'll need to install python3-influxdb. With your local testing environment setup you can now push data into it, start with a known good script like docker_hub_images.
+To be able to run metrics you'll need to install python3-influxdb and python3-prometheus-client:
+
+```sudo apt-get install python3-influxdb python3-prometheus-client```
+
+With your local testing environment setup you can now push data into it, start with a known good script like docker_hub_images.
 
 ```
 INFLUXDB_HOSTNAME=$(juju status --format json | jq -r '.applications["influxdb"].units[]["public-address"]') INFLUXDB_PORT=8086 INFLUXDB_USERNAME='' INFLUXDB_PASSWORD='' INFLUXDB_DATABASE=foundations python3 -m metrics.docker_hub_images
