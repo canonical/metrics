@@ -123,7 +123,7 @@ def get_team_daily_triage_count(team, distro, blacklist=None):
     return len(results)
 
 
-def get_team_unassigned_bugs(team, distro):
+def get_team_subscribed_unassigned_bugs(team, distro):
     """
     Report count of new unassigned bugs for Launchpad team on a distro.
 
@@ -136,7 +136,7 @@ def get_team_unassigned_bugs(team, distro):
                                      status='New'))
 
 
-def get_team_incomplete_bugs(team, distro):
+def get_team_subscribed_incomplete_bugs(team, distro):
     """Report count of incomplete bugs for Launchpad team on a distro."""
     lp_distro = LP.distributions[distro]
     lp_team = LP.people[team]

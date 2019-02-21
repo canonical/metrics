@@ -15,10 +15,10 @@ from metrics.helpers import util
 
 def collect(dryrun=False):
     """Submit data to Push Gateway."""
-    unassigned = lp.get_team_unassigned_bugs(team='ubuntu-mir',
-                                             distro='Ubuntu')
-    incomplete = lp.get_team_incomplete_bugs(team='ubuntu-mir',
-                                             distro='Ubuntu')
+    unassigned = lp.get_team_subscribed_unassigned_bugs(team='ubuntu-mir',
+                                                        distro='Ubuntu')
+    incomplete = lp.get_team_subscribed_incomplete_bugs(team='ubuntu-mir',
+                                                        distro='Ubuntu')
     pending = lp.get_mirs_in_review()
     security = lp.get_mirs_in_security_review()
     approved = lp.get_approved_mirs()
