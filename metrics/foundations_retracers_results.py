@@ -39,18 +39,18 @@ def collect(environment, dryrun=False):
         sys.exit(1)
 
     results = retrace_results_json['objects'][0]['value']
-    for release in results:
+    for value in results:
         data = []
         arch = ''
-        if ':' in release:
-            release, arch = release.split(':')
+        if ':' in value:
+            release, arch = value.split(':')
         if dryrun:
             if arch:
                 print("%s:%s" % (release, arch))
             else:
-                print("%s" % release)
-        for result in results[release]:
-            count = results[release][result]
+                print("%s" % value)
+        for result in results[value]:
+            count = results[value][result]
             if not result:
                 result = 'unclassified'
             if dryrun:
