@@ -44,6 +44,8 @@ def collect(environment, dryrun=False):
         arch = ''
         if ':' in value:
             release, arch = value.split(':')
+        else:
+            release = value
         if dryrun:
             if arch:
                 print("%s:%s" % (release, arch))
