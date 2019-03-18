@@ -42,6 +42,7 @@ def collect(environment, dryrun=False):
     for value in results:
         data = []
         arch = ''
+        release = value
         if ':' in value:
             release, arch = value.split(':')
         if dryrun:
