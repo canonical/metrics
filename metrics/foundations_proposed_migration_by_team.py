@@ -65,15 +65,14 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
 
     TEAM = ARGS.team
-    try:
-        DATA = get_proposed_migration_queue(TEAM)
-    finally:
-        if not ARGS.dryrun:
-            print('Pushing data...')
-            util.influxdb_insert([DATA])
-        else:
-            print('Valid candidates: %i' % DATA['fields']['valid_candidates'])
-            print('Not considered candidates: %i' %
-                  DATA['fields']['not_considered'])
-            print('Median age: %i' % DATA['fields']['median_age'])
-            print('Backlog: %i' % DATA['fields']['backlog'])
+    DATA = get_proposed_migration_queue(TEAM)
+
+    if not ARGS.dryrun:
+        print('Pushing data...')
+        util.influxdb_insert([DATA])
+    else:
+        print('Valid candidates: %i' % DATA['fields']['valid_candidates'])
+        print('Not considered candidates: %i' %
+              DATA['fields']['not_considered'])
+        print('Median age: %i' % DATA['fields']['median_age'])
+        print('Backlog: %i' % DATA['fields']['backlog'])
