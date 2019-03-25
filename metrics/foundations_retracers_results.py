@@ -36,7 +36,7 @@ def collect(environment, dryrun=False):
         sys.exit(1)
     if retrace_results_json['objects'][0]['date'] != TODAY.strftime('%Y%m%d'):
         print("The results are not for today, quitting.")
-        sys.exit(1)
+        sys.exit(0)
 
     results = retrace_results_json['objects'][0]['value']
     for value in results:
