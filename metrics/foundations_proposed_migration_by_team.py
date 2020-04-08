@@ -20,7 +20,7 @@ def get_proposed_migration_queue(team):
             logging.error('URL %s failed with code %u', req.geturl(), code)
             return {}
         yamldata = StringIO(req.read().decode('UTF-8'))
-    yaml_handle = yaml.safe_load(yamldata)
+    yaml_handle = yaml.load(yamldata, Loader=yaml.Loader)
     valid = 0
     not_considered = 0
     ages = []
