@@ -12,7 +12,7 @@ from metrics.helpers import util
 
 def get_queue_data():
     """Download queue url and return json data."""
-    queue_url = 'http://autopkgtest.ubuntu.com/queues.json'
+    queue_url = 'http://autopkgtest.ubuntu.com/queue_size.json'
     queue_json = util.get_json_from_url(queue_url)
     return queue_json
 
@@ -23,7 +23,7 @@ def collect(queue_name, dryrun=False):
 
     for release in queue_details:
         for arch in queue_details[release]:
-            count = len(queue_details[release][arch])
+            count = queue_details[release][arch]
             print('%s %s: %i' % (release.title(), arch, count))
 
     if not dryrun:
@@ -32,7 +32,7 @@ def collect(queue_name, dryrun=False):
 
         for release in queue_details:
             for arch in queue_details[release]:
-                count = len(queue_details[release][arch])
+                count = queue_details[release][arch]
                 data.append({
                     'measurement': 'foundations_autopkgtest_queue',
                     'fields': {
