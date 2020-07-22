@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Submit metrics for proposed-migration statistics."""
+import argparse
 import csv
 from io import StringIO
 import logging
@@ -40,10 +41,21 @@ def get_proposed_migration_queue(data):
 
 
 if __name__ == '__main__':
+    PARSER = argparse.ArgumentParser()
+    PARSER.add_argument('--dryrun', action='store_true')
+    ARGS = PARSER.parse_args()
     logging.basicConfig(level=logging.DEBUG)
 
     DATA = []
     try:
         get_proposed_migration_queue(DATA)
     finally:
-        util.influxdb_insert(DATA)
+        if ARGS.dryrun:
+            print('Valid candidates: %i' %
+                  DATA[0]['fields']['valid_candidates'])
+            print('Not considered candidates: %i' %
+                  DATA[0]['fields']['not_considered'])
+            print('Median age: %i' % DATA[0]['fields']['median_age'])
+            print('Backlog: %i' % DATA[0]['fields']['backlog'])
+        else:
+            util.influxdb_insert(DATA)
