@@ -9,6 +9,7 @@ import argparse
 import logging
 import urllib.request
 
+from datetime import datetime
 from bs4 import BeautifulSoup
 
 try:
@@ -40,7 +41,6 @@ def sru_queue_count():
 
 def unapproved_sru_ages():
     """Determine age of UNAPPROVED uploads for proposed for each series."""
-    from datetime import datetime
     ubuntu = lp.get_ubuntu()
     stable_series = [s for s in ubuntu.series if s.active]
     stable_series.remove(ubuntu.current_series)

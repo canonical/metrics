@@ -11,6 +11,7 @@ import shlex
 import subprocess
 import sys
 import tempfile
+import git
 try:
     from urllib.error import URLError
     from urllib.request import urlopen
@@ -38,7 +39,6 @@ def bzr_contributors(pkg):
 
 def git_contributors(git_url):
     """Return numbers on git project contributors."""
-    import git
     with tempfile.TemporaryDirectory() as temp:
         print('Cloning %s into %s' % (git_url, temp))
         git.Repo.clone_from(git_url, temp)
