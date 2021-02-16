@@ -147,7 +147,9 @@ def parse_simplestreams_for_images(images):
 
 
 def _determine_serial_age(serial):
-    serial_datetime = datetime.datetime.strptime(str(serial), '%Y%m%d')
+    # Trim the serial to 8 digits to comply with the YYYYMMDD format.
+    serial = str(serial)[:8]
+    serial_datetime = datetime.datetime.strptime(serial, '%Y%m%d')
     return (TODAY - serial_datetime.date()).days
 
 
