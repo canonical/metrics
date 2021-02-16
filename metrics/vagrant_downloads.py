@@ -20,9 +20,9 @@ def get_vagrant_data():
     """Get download for specific release."""
     try:
         page = requests.get(BASE_URL)
-    except urllib.error.HTTPError:
+    except urllib.error.HTTPError as exception:
         print('failed to get vagrant data')
-        raise ValueError
+        raise ValueError from exception
 
     soup = BeautifulSoup(page.content, 'lxml')
 
