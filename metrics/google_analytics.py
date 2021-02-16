@@ -19,6 +19,7 @@ Maximiliano Bertacchini <maximiliano.bertacchini@canonical.com>
 import argparse
 import logging
 import os
+import pprint
 
 import httplib2
 from prometheus_client import CollectorRegistry, Gauge
@@ -143,7 +144,6 @@ def collect(view_id, creds_path, metric_prefix, dry_run=False):
                     os.environ.pop(envvar, None)
             util.push2gateway(metric_prefix, registry)
         else:  # Debugging enabled.
-            import pprint
             pprint.pprint([(x.name, x.samples) for x in registry.collect()])
 
 

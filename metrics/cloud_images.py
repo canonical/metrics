@@ -10,6 +10,7 @@ import os.path
 import re
 from collections import defaultdict
 import distro_info  # pylint: disable=wrong-import-order
+import pprint
 import requests
 
 from metrics.helpers.sstreams import UbuntuCloudImages, ifilter
@@ -299,7 +300,6 @@ def collect(dryrun=False):
         print('Pushing data...')
         util.influxdb_insert(metrics)
     else:
-        import pprint
         pprint.pprint(metrics)
 
 
