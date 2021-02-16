@@ -82,7 +82,7 @@ def print_with_labels(results, labels):
         metric = result.get('metric', {})
         for date, value in result.get('values', []):
             print_result(date,
-                         ','.join([value] + [metric.get(l) for l in labels]))
+                         ','.join([value] + [metric.get(L) for L in labels]))
 
 
 def query_prometheus(url, params):
