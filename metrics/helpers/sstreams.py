@@ -235,4 +235,4 @@ class NotFilter(MultiFilter):
     @staticmethod
     def operation(value):
         """Inverse the filter."""
-        return all([not x for x in value])
+        return all((not x for x in value))
