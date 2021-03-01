@@ -7,7 +7,7 @@ jobs=2
 [MESSAGES CONTROL]
 
 # Ignore keyword argument 'registry'
-disable = E1123,no-member,len-as-condition
+disable = E1123,no-member,len-as-condition,duplicate-code
 
 
 [REPORTS]
