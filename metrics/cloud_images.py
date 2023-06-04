@@ -36,7 +36,7 @@ DOCKER_CORE_ROOT = 'https://partner-images.canonical.com/core'
 def _parse_serial_date_int_from_string(serial_str):
     match = re.match(r'\d+', serial_str)
     if match is None:
-        raise Exception('No serial found in {}'.format(serial_str))
+        raise ValueError('No serial found in {}'.format(serial_str))
     return int(match.group(0))
 
 
@@ -58,8 +58,12 @@ def get_current_download_serials(download_root):
             continue
         for line in build_info_response.text.splitlines():
             if line.lower().startswith('serial='):
-                serial = _parse_serial_date_int_from_string(
-                    line.split('=')[1])
+                try:
+                    serial = _parse_serial_date_int_from_string(
+                        line.split('=')[1])
+                except ValueError as exp:
+                    print("Error parsing serial:", exp)
+                    continue
                 break
         else:
             # If the build-info.txt doesn't contain a serial, we should ignore
